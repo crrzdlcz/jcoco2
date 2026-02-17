@@ -1,0 +1,11 @@
+_inicio
+~
+    if (suma <= 30) {
+        print!("La suma es mayor o igual que 30!");
+    }
+    else {
+        print!("La suma es menor que 30!");
+    }
+
+~
+final_
