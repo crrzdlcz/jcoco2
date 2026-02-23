@@ -1231,9 +1231,10 @@ Arbol condicionalIf() :
   // Comprobacion de tipo bool en la expresion que va entre parentesis.
   {
     String tipoCond = obtenerTipoDeArbol(condicion);
-    if (tipoCond.equals("bool") && !tipoCond.equals("error"))
+    if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
-      registrarError("Error Semantico: La condicion del if debe ser del tipo 'bool', se encontró '" + tipoCond + "´.");
+      registrarError("Error Semantico: Linea " + t_pa.beginLine + ", columna" + t_pa.beginLine +
+      "La condicion del if debe ser del tipo 'bool', se encontró '" + tipoCond + "'.");
     }
   }
     

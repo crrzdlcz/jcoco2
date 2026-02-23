@@ -25,7 +25,7 @@ _inicio // -> Inicio del codigo ejecutable.
     coco int: x;
     b = suma();
 
-if ( x < )
+if ( x++ )
     if ( b("") <= 30) // -> Condicional if
     {
         print!("La suma es mayor o igual que 30!");

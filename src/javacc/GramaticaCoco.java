@@ -1334,9 +1334,10 @@ nodoIf.agregarHijo(new Arbol("Token: " + t_pa.image));
       condicion = expresion();
 nodoIf.agregarHijo(condicion);
 String tipoCond = obtenerTipoDeArbol(condicion);
-    if (tipoCond.equals("bool") && !tipoCond.equals("error"))
+    if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
-      registrarError("Error Semantico: La condicion del if debe ser del tipo 'bool', se encontr\u00f3 '" + tipoCond + "\u00b4.");
+      registrarError("Error Semantico: Linea " + t_pa.beginLine + ", columna" + t_pa.beginLine +
+      "La condicion del if debe ser del tipo 'bool', se encontr\u00f3 '" + tipoCond + "'.");
     }
     // ")"
       t_pc = jj_consume_token(PAREN_CIERRA);
