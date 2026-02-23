@@ -9,6 +9,8 @@ import coco.Arbol;
 import coco.Tabla;
 import coco.Simbolo;
 import coco.Colores;
+import java.util.List;
+
 
 public class GramaticaCoco
 {
@@ -63,6 +65,191 @@ public class GramaticaCoco
   void consumeToken(int kind) throws ParseException {
     jj_consume_token(kind);
   }
+
+
+
+  /*-- METODOS PARA COMPROBAR TIPODS --*/
+
+  public String obtenerTipoDeArbol(Arbol nodo)
+  {
+    if (nodo == null) return "error";
+
+    String nombre = nodo.getNombreProduccion();
+
+    // 1. Caso Base: Literales (hojas del árbol)
+    if (nombre.startsWith("Literal_INT")) return "int";
+    if (nombre.startsWith("Literal_FLOAT")) return "float";
+    if (nombre.startsWith("Literal_CADENA_DE_CARACTERES")) return "string";
+    // Si tienes booleanos literales (true/false), agrégalos aquí
+    // if (nombre.startsWith("Literal_BOOL")) return "bool";
+
+    // 2. Caso Base: Identificadores (Variables)
+    if (nombre.startsWith("Literal_IDENTIFICADOR"))
+    {
+        // Extraemos el nombre
+        String[] partes = nombre.split(": ");
+        if (partes.length < 2) return "error";
+        
+        String idNombre = partes[1].trim();
+        Simbolo s = tabla.buscar(idNombre);
+        
+        if (s != null) {
+            return s.tipo; // Devuelve el tipo,
+        }
+        return "error";
+    }
+
+    // 3. Caso: Llamada a Función
+    if (nombre.equals("LlamadaFuncion")) {
+        // El primer hijo es el ID...
+        Arbol nodoId = nodo.getHijos().get(0);
+        String idNombre = nodoId.getNombreProduccion().split(": ")[1].trim();
+        Simbolo s = tabla.buscar(idNombre);
+        
+        if (s != null && s.tipo.equals("funcion")) {
+           // return s.tipoRetorno; // Retornamos el tipo que devuelve la función
+            return (s.tipoRetorno != null) ? s.tipoRetorno : "error"; // pero se checa si no es nullo,
+        }
+        return "error";
+    }
+
+    // 4. Caso: Agrupación (Paréntesis)
+    if (nombre.equals("Agrupacion")) {
+        // Estructura: Token (, Expresion, Token )
+        // El hijo 1 es la expresión interna
+        if (nodo.getHijos().size() > 1) {
+            return obtenerTipoDeArbol(nodo.getHijos().get(1));
+        }
+        return "error";
+    }
+
+    // 5. Caso: Operadores Unarios (!, ++, --, -)
+    if (nombre.startsWith("Unario_NOT")) {
+        // El operador ! siempre devuelve bool
+        // verificacion de tipos en op unarios !:
+        Arbol hijo = nodo.getHijos().get(1);
+        String tipoHijo = obtenerTipoDeArbol(hijo);
+
+		// Verificacion de tipos en operador unario not, de tipo bool.
+		if (!tipoHijo.equals("bool") && !tipoHijo.equals("error"))
+		{
+	      registrarError("Error Semántico: El operador '!' requiere un operando de tipo 'bool', se encontró '" + tipoHijo + "'.");
+	      return "error";
+    	}
+        
+        return "bool";
+    }
+    // cheque de tipos ++ o -- necesitan numeros.
+    if (nombre.startsWith("Unario_INC") || nombre.startsWith("Unario_DEC"))
+    {
+        // ++, --, - (negativo) devuelven el mismo tipo del operando
+        // Estructura: Token, Operando
+
+		Arbol hijo = nodo.getHijos().get(1);
+		String tipoHijo = obtenerTipoDeArbol(hijo);
+
+		if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+		{
+		  registrarError("Error Semántico: Los operadores '++' o '--' requieren tipos numéricos, se encontró '" + tipoHijo + "'.");
+          return "error";
+		}
+
+		return tipoHijo;
+        
+        /*if (nodo.getHijos().size() > 1) {
+            return obtenerTipoDeArbol(nodo.getHijos().get(1));
+        }
+        return "error";
+        */
+    }
+
+	// Caso 5.5
+	// Cheque de tipoos, evita string negativas -"hola" XDXDXDXDXd.
+    if (nombre.startsWith("Unario_RESTA"))
+    {
+      Arbol hijo = nodo.getHijos().get(1);
+      String tipoHijo = obtenerTipoDeArbol(hijo);
+
+
+	  if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+	  {
+	    registrarError("Error Semántico: El operador unario '-' requiere tipos numéricos, se encontró '" + tipoHijo + "'.");
+        return "error";
+	  }
+
+	  return tipoHijo;
+      
+    }
+
+    // 6. Caso: Operaciones Binarias (Aritméticas, Relacionales, Lógicas)
+    // Estructura típica: [Izquierda, Token Operador, Derecha]
+    if (nombre.startsWith("Operacion_") || nombre.startsWith("Operador_")) {
+        List<Arbol> hijos = nodo.getHijos();
+        if (hijos.size() < 3) return "error";
+
+        Arbol izq = hijos.get(0);
+        // Arbol op = hijos.get(1); // Token del operador
+        Arbol der = hijos.get(2);
+
+        String tipoIzq = obtenerTipoDeArbol(izq);
+        String tipoDer = obtenerTipoDeArbol(der);
+
+        // Si hay error en los operandos, propagamos el error
+        if (tipoIzq.equals("error") || tipoDer.equals("error")) return "error";
+
+        // Reglas de Inferencia de Tipos
+        
+        // A) Operaciones Aritméticas (+, -, *, /)
+        if (nombre.contains("SUM_RES") || nombre.contains("MUL_DIV_MOD")) {
+            // int + int = int
+            if (tipoIzq.equals("int") && tipoDer.equals("int")) return "int";
+            
+            // float + int = float (promoción de tipo)
+            if ((tipoIzq.equals("float") || tipoIzq.equals("int")) && 
+                (tipoDer.equals("float") || tipoDer.equals("int"))) {
+                return "float";
+            }
+            
+            // String + X = String (concatenación, si tu lenguaje lo permite)
+            if (tipoIzq.equals("string") || tipoDer.equals("string")) return "string";
+
+            // Si no coinciden, es error de tipos (ej: bool + int)
+            registrarError("Error Semántico: Operación aritmética inválida entre tipos '" + tipoIzq + "' y '" + tipoDer + "'");
+            return "error";
+        }
+
+        // B) Operaciones Relacionales (<, >, ==, etc.)
+        if (nombre.contains("Relacional")) {
+            // Comparar números
+            if ((tipoIzq.equals("int") || tipoIzq.equals("float")) && 
+                (tipoDer.equals("int") || tipoDer.equals("float"))) {
+                return "bool";
+            }
+            // Comparar strings (solo igualdad/desigualdad usualmente)
+            if (tipoIzq.equals("string") && tipoDer.equals("string")) {
+                return "bool";
+            }
+            
+            registrarError("Error Semántico: No se pueden comparar tipos '" + tipoIzq + "' y '" + tipoDer + "'");
+            return "error";
+        }
+
+        // C) Operaciones Lógicas (&&, ||)
+        if (nombre.contains("AND") || nombre.contains("OR")) {
+            if (tipoIzq.equals("bool") && tipoDer.equals("bool")) {
+                return "bool";
+            }
+            registrarError("Error Semántico: Operadores lógicos requieren tipos 'bool', se encontró '" + tipoIzq + "' y '" + tipoDer + "'");
+            return "error";
+        }
+    }
+
+    return "error"; // Caso por defecto desconocido
+  }
+
+  // Variable para checar el tipo del retorno de una funcion.
+  private String tipoRetornoFuncionActual = null;
+  
 }
 
 PARSER_END(GramaticaCoco)
@@ -226,8 +413,15 @@ Arbol funcion() :
   tipoRetorno = tiposDeDatos() { nodoFuncion.agregarHijo(new Arbol("TipoRetorno: " + tipoRetorno)); }
 
   {
-    Simbolo simboloFuncion = new Simbolo(nombreFuncion, "funcion", tabla.getAmbitoActual(), t_id.beginLine);
+    /*Simbolo simboloFuncion = new Simbolo(nombreFuncion, "funcion", tabla.getAmbitoActual(), t_id.beginLine);
+    tabla.insertar(simboloFuncion); */
+
+    tipoRetornoFuncionActual = tipoRetorno;  // Para validar el tipo de retorno.
+	
+	Simbolo simboloFuncion = new Simbolo(nombreFuncion, "funcion", tabla.getAmbitoActual(), t_id.beginLine);
+    simboloFuncion.tipoRetorno = tipoRetorno;
     tabla.insertar(simboloFuncion);
+    
   }
 
   t_pa = <PAREN_ABRE> { nodoFuncion.agregarHijo(new Arbol ("Token " + t_pa.image)); }
@@ -240,8 +434,11 @@ Arbol funcion() :
   	
   bloque = bloqueDeCodigo() { nodoFuncion.agregarHijo(bloque); }
 
-  { tabla.salirAmbito(); }
-  { return nodoFuncion; }
+  {
+    tabla.salirAmbito();
+    tipoRetornoFuncionActual = null; // Limpiamos la variable; Por si se encuentra otra declaracion de funcion
+   	return nodoFuncion;
+  }
 }
 
 // Produccion que define la lista de parametros de una funcion.
@@ -349,6 +546,7 @@ Arbol sentenciasConIdentificador() :
   Arbol nodo = new Arbol("SentenciasConIdentificador");
   Arbol llamadaFunc, accVector, exp;
   Token t_pc, t_asig, t_id;
+  Simbolo simboloUsado = null;
 }
 {
   LOOKAHEAD(3)
@@ -372,7 +570,7 @@ Arbol sentenciasConIdentificador() :
     t_id = <ID>
     {
       nodo.agregarHijo(new Arbol("ID_Asignacion: " + t_id.image));
-      Simbolo simboloUsado = tabla.buscar(t_id.image);
+      simboloUsado = tabla.buscar(t_id.image);
 
       if (simboloUsado == null)
         {
@@ -383,12 +581,37 @@ Arbol sentenciasConIdentificador() :
   	  	
   	t_asig = <OP_ASIGNACION> { nodo.agregarHijo(new Arbol("Token: " + t_asig.image)); }
 
-  	exp = expresion() { nodo.agregarHijo(exp); }
+  	exp = expresion()
+  	{
+  	  if (simboloUsado != null)
+  	  {
+  	    String tipoVariable = simboloUsado.tipo;
+  	    String tipoExpresion = obtenerTipoDeArbol(exp);
+
+  	    if (tipoExpresion == null) tipoExpresion = "error";
+  	    
+
+  	    if (!tipoExpresion.equals("error"))
+  	    {
+  	      if (!tipoVariable.equals(tipoExpresion))
+          {
+            boolean esCompatible = (tipoVariable.equals("float") && tipoExpresion.equals("int"));
+
+            if (!esCompatible) 
+            {
+              registrarError("Error Semántico: Línea " + t_id.beginLine + ". Tipos incompatibles. No se puede asignar '" + tipoExpresion + "' a variable de tipo '" + tipoVariable + "'");
+            }
+          }  
+        } 
+     }
+  	 nodo.agregarHijo(exp); 
+
+  	}
 
   	t_pc = <PUNTOYCOMA> { nodo.agregarHijo(new Arbol("Token: " + t_pc.image)); }
 
   	{ return nodo; }
-  	)
+  )
 }
 
 // Return...
@@ -401,6 +624,24 @@ Arbol sentenciaRetorno() :
 {
   t_return = <RETURN> { nodoRetorno.agregarHijo(new Arbol ("Token: " + t_return.image)); }
   exp = expresion() { nodoRetorno.agregarHijo(exp); }
+
+  // Validacion de tipos:
+  {
+    if (tipoRetornoFuncionActual != null )
+    {
+      String tipoExp = obtenerTipoDeArbol(exp);
+
+      boolean esCompatible = tipoExp.equals(tipoRetornoFuncionActual) || (tipoRetornoFuncionActual.equals("float") && tipoExp.equals("int"));
+
+      if (!esCompatible && !tipoExp.equals("error"))
+      {
+        registrarError("Error Semantico: Linea " + t_return.beginLine + ", columna " + t_return.beginColumn + ". El tipo de retorno '" + tipoExp +
+        "' no coincide con el tipo decalrado  de la funcion '" + tipoRetornoFuncionActual + "'");
+      }
+      
+    }
+  }
+  
   t_pc = <PUNTOYCOMA> { nodoRetorno.agregarHijo(new Arbol ("Token: " + t_pc.image)); }
 
   { return nodoRetorno; }
@@ -951,6 +1192,15 @@ Arbol bucleWhile() :
   t_pa = <PAREN_ABRE> { nodoBucleWhile.agregarHijo(new Arbol("Token: " + t_pa.image)); }
     
   condicion = expresion() { nodoBucleWhile.agregarHijo(condicion); }
+
+  // Comprobacion de tipo bool en la expresion que va entre parentesis.
+  {
+    String tipoCond = obtenerTipoDeArbol(condicion);
+    if (tipoCond.equals("bool") && !tipoCond.equals("error"))
+    {
+      registrarError("Error Semantico: La condicion del bucle while debe ser del tipo 'bool', se encontró '" + tipoCond + "´.");
+    }
+  }
     
   t_pc = <PAREN_CIERRA> { nodoBucleWhile.agregarHijo(new Arbol("Token: " + t_pc.image)); }
     
@@ -977,6 +1227,15 @@ Arbol condicionalIf() :
     
   // Condición.
   condicion = expresion() { nodoIf.agregarHijo(condicion); }
+
+  // Comprobacion de tipo bool en la expresion que va entre parentesis.
+  {
+    String tipoCond = obtenerTipoDeArbol(condicion);
+    if (tipoCond.equals("bool") && !tipoCond.equals("error"))
+    {
+      registrarError("Error Semantico: La condicion del if debe ser del tipo 'bool', se encontró '" + tipoCond + "´.");
+    }
+  }
     
   // ")"
   t_pc = <PAREN_CIERRA> { nodoIf.agregarHijo(new Arbol("Token: " + t_pc.image)); }

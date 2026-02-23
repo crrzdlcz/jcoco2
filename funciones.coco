@@ -22,14 +22,8 @@ _inicio // -> Inicio del codigo ejecutable.
     resta();
     suma(); // -> Llamada a la funcion suma.
 
-    coco int: b;
+    coco int: x;
     b = suma();
-
-~~~~~@@@@@
-
-if ( x < )
-
-else;
 
 if ( x < )
     if ( b("") <= 30) // -> Condicional if

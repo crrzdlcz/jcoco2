@@ -1,0 +1,135 @@
+-> Raíz
+|  -> DeclaracionDeFuncion
+|  |  -> Token: fn
+|  |  -> Token: suma
+|  |  -> Token ->
+|  |  -> TipoRetorno: int
+|  |  -> Token (
+|  |  -> ListaDeParametros
+|  |  -> Token )
+|  |  -> BloqueDeCodigo
+|  |  |  -> Token: {
+|  |  |  -> DeclaracionDeVariable
+|  |  |  |  -> Token: coco
+|  |  |  |  -> Tipo: int
+|  |  |  |  -> Token: :
+|  |  |  |  -> Token: a
+|  |  |  |  -> Token: =
+|  |  |  |  -> Literal_INT: 10
+|  |  |  |  -> Token: ;
+|  |  |  -> DeclaracionDeVariable
+|  |  |  |  -> Token: coco
+|  |  |  |  -> Tipo: int
+|  |  |  |  -> Token: :
+|  |  |  |  -> Token: b
+|  |  |  |  -> Token: =
+|  |  |  |  -> Literal_INT: 20
+|  |  |  |  -> Token: ;
+|  |  |  -> DeclaracionDeVariable
+|  |  |  |  -> Token: coco
+|  |  |  |  -> Tipo: int
+|  |  |  |  -> Token: :
+|  |  |  |  -> Token: resultado
+|  |  |  |  -> Token: ;
+|  |  |  -> SentenciasConIdentificador
+|  |  |  |  -> ID_Asignacion: resultado
+|  |  |  |  -> Token: =
+|  |  |  |  -> Literal_INT: 0
+|  |  |  |  -> Token: ;
+|  |  |  -> SentenciaDeSalida
+|  |  |  |  -> Token: print!
+|  |  |  |  -> Token: (
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "Ingrese el primer numero: "
+|  |  |  |  -> Token: )
+|  |  |  |  -> Token: ;
+|  |  |  -> SentenciaDeEntrada
+|  |  |  |  -> Token: scan!
+|  |  |  |  -> Token: (
+|  |  |  |  -> Token: a
+|  |  |  |  -> Token: )
+|  |  |  |  -> Token: ;
+|  |  |  -> SentenciaDeSalida
+|  |  |  |  -> Token: print!
+|  |  |  |  -> Token: (
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "Ingrese el segundo numero: "
+|  |  |  |  -> Token: )
+|  |  |  |  -> Token: ;
+|  |  |  -> SentenciaDeEntrada
+|  |  |  |  -> Token: scan!
+|  |  |  |  -> Token: (
+|  |  |  |  -> Token: b
+|  |  |  |  -> Token: )
+|  |  |  |  -> Token: ;
+|  |  |  -> SentenciasConIdentificador
+|  |  |  |  -> ID_Asignacion: resultado
+|  |  |  |  -> Token: =
+|  |  |  |  -> Operacion_SUM_RES_OR: +
+|  |  |  |  |  -> Literal_IDENTIFICADOR: a
+|  |  |  |  |  -> Token: +
+|  |  |  |  |  -> Literal_IDENTIFICADOR: b
+|  |  |  |  -> Token: ;
+|  |  |  -> SentenciaDeRetorno
+|  |  |  |  -> Token: return
+|  |  |  |  -> Literal_IDENTIFICADOR: resultado
+|  |  |  |  -> Token: ;
+|  |  |  -> Token: }
+|  -> Token: _inicio
+|  -> SentenciasConIdentificador
+|  |  -> LlamadaFuncion
+|  |  |  -> Token: resta
+|  |  |  -> Token: (
+|  |  |  -> Token: )
+|  |  -> Token: ;
+|  -> SentenciasConIdentificador
+|  |  -> LlamadaFuncion
+|  |  |  -> Token: suma
+|  |  |  -> Token: (
+|  |  |  -> Token: )
+|  |  -> Token: ;
+|  -> DeclaracionDeVariable
+|  |  -> Token: coco
+|  |  -> Tipo: int
+|  |  -> Token: :
+|  |  -> Token: x
+|  |  -> Token: ;
+|  -> SentenciasConIdentificador
+|  |  -> ID_Asignacion: b
+|  |  -> Token: =
+|  |  -> LlamadaFuncion
+|  |  |  -> Token: suma
+|  |  |  -> Token: (
+|  |  |  -> Token: )
+|  |  -> Token: ;
+|  -> Condicional_IF
+|  |  -> Token: if
+|  |  -> Token: (
+|  |  -> Operador_Relacional<=
+|  |  |  -> LlamadaFuncion
+|  |  |  |  -> Token: b
+|  |  |  |  -> Token: (
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: ""
+|  |  |  |  -> Token: )
+|  |  |  -> Token: <=
+|  |  |  -> Literal_INT: 30
+|  |  -> Token: )
+|  |  -> BloqueDeCodigo
+|  |  |  -> Token: {
+|  |  |  -> SentenciaDeSalida
+|  |  |  |  -> Token: print!
+|  |  |  |  -> Token: (
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "La suma es mayor o igual que 30!"
+|  |  |  |  -> Token: )
+|  |  |  |  -> Token: ;
+|  |  |  -> Token: }
+|  |  -> Token: else
+|  |  -> Bloque_ELSE
+|  |  -> BloqueDeCodigo
+|  |  |  -> Token: {
+|  |  |  -> SentenciaDeSalida
+|  |  |  |  -> Token: print!
+|  |  |  |  -> Token: (
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "La suma es menor que 30!"
+|  |  |  |  -> Token: )
+|  |  |  |  -> Token: ;
+|  |  |  -> Token: }
+|  -> Token: final_

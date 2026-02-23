@@ -633,10 +633,9 @@ Arbol sentenciaRetorno() :
 
       boolean esCompatible = tipoExp.equals(tipoRetornoFuncionActual) || (tipoRetornoFuncionActual.equals("float") && tipoExp.equals("int"));
 
-      if (!esCompatible && !tipoExp.equals("error"))
+      if (esCompatible && !tipoExp.equals("error"))
       {
-        registrarError("Error Semantico: Linea " + t_return.beginLine + ", columna " + t_return.beginColumn + ". El tipo de retorno '" + tipoExp +
-        "' no coincide con el tipo decalrado  de la funcion '" + tipoRetornoFuncionActual + "'");
+        registrarError("Error Semantico; El tipo de retorno '" + tipoExp + "' no coincide con el tipo decalrado  de la funcion '" + tipoRetornoFuncionActual + "'");
       }
       
     }

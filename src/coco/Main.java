@@ -71,26 +71,35 @@ public class Main {
       }
   }
   
-  private static void guardarTabla(coco.Tabla tabla, String rutaSalida) {
+  private static void guardarTabla(coco.Tabla tabla, String rutaSalida) 
+  {
       Mensaje msj = new Mensaje();
-      try (PrintStream archivoSalida = new PrintStream(rutaSalida)) {
+      try (PrintStream archivoSalida = new PrintStream(rutaSalida)) 
+      {
           tabla.imprimirTabla(archivoSalida);
           msj.ok("TABLA DE SIMBOLOS GENERADA EN: \n  " + rutaSalida + "\n");
-      } catch (Exception e) {
+      } 
+      catch (Exception e) 
+      {
           msj.error("Error al generar tabla de símbolos: " + e.getMessage());
       }
   }
   
-  private static void guardarArbol(Arbol arbol, String rutaSalida) {
+  private static void guardarArbol(Arbol arbol, String rutaSalida) 
+  {
     Mensaje msj = new Mensaje();
     if (arbol == null) return;
     PrintStream consolaOriginal = System.out;
-    try (PrintStream archivoArbol = new PrintStream(rutaSalida)) {
+    
+    try (PrintStream archivoArbol = new PrintStream(rutaSalida)) 
+    {
       System.setOut(archivoArbol);
       arbol.imprimirArbol(0);
       System.setOut(consolaOriginal);
       msj.ok("ARBOL GENERADO EN: \n  " + rutaSalida + "\n");
-    } catch (Exception e) {
+    } 
+    catch (Exception e) 
+    {
       System.setOut(consolaOriginal);
       msj.error("Error al generar el árbol: " + e.getMessage());
 	}

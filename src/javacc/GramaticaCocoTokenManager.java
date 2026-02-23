@@ -5,6 +5,7 @@ import coco.Arbol;
 import coco.Tabla;
 import coco.Simbolo;
 import coco.Colores;
+import java.util.List;
 
 /** Token Manager. */
 @SuppressWarnings ("unused")

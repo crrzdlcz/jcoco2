@@ -1,0 +1,388 @@
+package coco;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Arbol {
+	
+    String nombre_produccion;
+    List<Arbol> hijos = new ArrayList<>();
+
+    public Arbol(String nombre_produccion)
+    {
+    	this.nombre_produccion = nombre_produccion;
+    }
+    
+    public void agregarHijo(Arbol hijo)
+    {
+    	if (hijo != null) 
+    	{
+    		hijos.add(hijo);
+    	}
+    }
+    
+    // Métodos getters
+    public String getNombreProduccion()
+    {
+    	return nombre_produccion;
+    }
+    
+    public List<Arbol> getHijos()
+    {
+    	return hijos;
+    }
+    
+    // Para saber si es una hoja (no tiene hijos) 
+    public boolean esHoja() {
+        return hijos.isEmpty();
+    }
+    
+    // Para obtener un "mejor string"
+    @Override
+    public String toString() {
+        return nombre_produccion;
+    }
+    
+    
+    public void imprimirArbol(int nivel) 
+    {
+        StringBuilder indentacion = new StringBuilder();
+        for (int i = 0; i < nivel; i++) 
+        {
+            indentacion.append("|  "); 
+        }
+        System.out.println(indentacion.toString() + "-> " + this.nombre_produccion);
+
+        for (Arbol hijo : hijos) 
+        {
+            hijo.imprimirArbol(nivel + 1);
+        }
+    }
+    
+}
+package coco;
+
+public final class Colores {
+	
+	public static final String RESET = "\033[0m";
+	public static final String ROJO = "\033[0;31m";
+	public static final String VERDE = "\033[032m";
+	public static final String MORADO = "\033[035m";
+	public static final String AZUL = "\033[034m";
+	public static final String UNDERLINE = "\033[4m";
+	public static final String NEGRITAS = "\033[1m";
+	public static final String ROJO_NEGRITA = ROJO + NEGRITAS;
+	public static final String VERDE_NEGRITA = VERDE + NEGRITAS;
+	public static final String AZUL_NEGRITA = AZUL + NEGRITAS;
+	public static final String MORADO_NEGRITA = MORADO + NEGRITAS;
+	
+	public static final String Limpiar_Pantalla = "\033[H\033[2J";
+}
+package coco;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+
+
+/*-- Clase que define como agarrar la ruta del archivo a analizar. --*/
+public class Entrada 
+{
+  public static InputStream obtenerRuta (String ruta) throws FileNotFoundException 
+  {
+    return new FileInputStream(ruta);
+  }
+}
+package coco;
+
+import java.io.InputStream;
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
+import java.util.List;
+import javacc.GramaticaCoco;
+import javacc.ParseException;
+import javacc.TokenMgrError;
+
+public class Main {
+
+  public static void main(String[] args) {
+    Mensaje msj = new Mensaje();
+    if (args.length == 0) {
+        msj.adv("Se requiere la ruta del código fuente");
+        System.exit(1);
+    }
+    
+    String rutaArchivo = args[0];
+    GramaticaCoco parser = null;
+    Arbol arbol = null;
+
+    try {
+        InputStream is = Entrada.obtenerRuta(rutaArchivo);
+        msj.msjBienvenida("0");
+        parser = new GramaticaCoco(is);
+        
+        try {
+            arbol = parser.Coco();
+        } catch (TokenMgrError | ParseException e) {
+            GramaticaCoco.registrarError("Error Crítico (Léxico/Sintáctico): " + e.getMessage());
+        }
+
+    } catch (FileNotFoundException e) {
+        msj.error("Archivo no encontrado: " + e.getMessage());
+        return; 
+    } catch (Exception e) {
+        msj.error("Error inesperado: " + e.getMessage());
+    } finally {
+        if (parser != null) {
+            List<String> errores = parser.getListaErrores();
+            
+            if (errores.isEmpty()) {
+                msj.ok("ANÁLISIS COMPLETADO: 0 errores detectados.");
+            } else {
+                msj.adv("ANÁLISIS FINALIZADO: Se encontraron " + errores.size() + " errores.");
+                
+                guardarErrores(errores, rutaArchivo + " - ERRORES.txt");
+            }
+
+            guardarTabla(Tabla.getTabla(), rutaArchivo + " - SIMBOLOS.txt");
+            
+            if (arbol != null) {
+                guardarArbol(arbol, rutaArchivo + " - ARBOL.txt");
+            }
+        }
+    }
+  }
+
+  private static void guardarErrores(List<String> errores, String rutaSalida) {
+      Mensaje msj = new Mensaje();
+      try (PrintStream archivo = new PrintStream(rutaSalida)) {
+          archivo.println("--- DETALLE DE ERRORES ENCONTRADOS ---");
+          for (String error : errores) {
+              archivo.println("- " + error);
+          }
+          msj.ok("DETALLE DE ERRORES GENERADO EN: \n  " + rutaSalida + "\n");
+      } catch (FileNotFoundException e) {
+          msj.error("No se pudo crear el archivo de errores: " + e.getMessage());
+      }
+  }
+  
+  private static void guardarTabla(coco.Tabla tabla, String rutaSalida) 
+  {
+      Mensaje msj = new Mensaje();
+      try (PrintStream archivoSalida = new PrintStream(rutaSalida)) 
+      {
+          tabla.imprimirTabla(archivoSalida);
+          msj.ok("TABLA DE SIMBOLOS GENERADA EN: \n  " + rutaSalida + "\n");
+      } 
+      catch (Exception e) 
+      {
+          msj.error("Error al generar tabla de símbolos: " + e.getMessage());
+      }
+  }
+  
+  private static void guardarArbol(Arbol arbol, String rutaSalida) 
+  {
+    Mensaje msj = new Mensaje();
+    if (arbol == null) return;
+    PrintStream consolaOriginal = System.out;
+    
+    try (PrintStream archivoArbol = new PrintStream(rutaSalida)) 
+    {
+      System.setOut(archivoArbol);
+      arbol.imprimirArbol(0);
+      System.setOut(consolaOriginal);
+      msj.ok("ARBOL GENERADO EN: \n  " + rutaSalida + "\n");
+    } 
+    catch (Exception e) 
+    {
+      System.setOut(consolaOriginal);
+      msj.error("Error al generar el árbol: " + e.getMessage());
+	}
+}
+}package coco;
+import static java.lang.System.out;
+import static coco.Colores.*;
+
+public class Mensaje 
+{
+  public Mensaje() 
+  {}	
+  
+  public void msjBienvenida(String msj)
+  {
+	out.print(Limpiar_Pantalla);
+    out.println(VERDE_NEGRITA + "\n\t     jCoCo");
+    out.println("  ===========================");
+  }
+  
+  public void ok(String msj) 
+  {
+    out.println(VERDE_NEGRITA + "󰗠 " +  msj);
+  }
+  
+  public void error(String msj) 
+  {
+    out.println(ROJO_NEGRITA + "  " +  msj);
+  }
+  
+  public void adv(String msj) 
+  {
+    out.println(MORADO + " " +  msj);
+  }
+  
+  /*public static void main(String[] args) {
+	Mensaje msj = new Mensaje();
+	msj.msjBienvenida("o");
+	msj.ok("Analisis terminado exitosamente");
+  }*/
+}
+package coco;
+
+public class Simbolo {
+	public String nombre;
+	public String tipo;
+	public String ambito;
+	public int lineaDeclaracion;
+	public String tipoRetorno;
+	public java.util.List<String> parametros;
+	
+	// Método constructor:
+	public Simbolo(String nombre, String tipo, String ambito, int linea) 
+	{
+		this.nombre = nombre;
+		this.tipo = tipo;
+		this.ambito = ambito;
+		this.lineaDeclaracion = linea;
+		
+		this.parametros = new java.util.ArrayList<>();
+	}
+	
+	/*@Override
+	public String toString() 
+	{
+        return "Simbolo{" +
+               "nombre='" + nombre + '\'' +
+               ", tipo='" + tipo + '\'' +
+               ", ambito='" + ambito + '\'' +
+               ", linea=" + lineaDeclaracion +
+               '}';
+    }*/
+	
+	
+	@Override
+	public String toString() 
+	{
+	    String tipoAImprimir = this.tipo;
+	    
+	    if ("funcion".equals(this.tipo) && this.tipoRetorno != null) {
+	        tipoAImprimir = "funcion:" + this.tipoRetorno;
+	    } 
+	    
+	    return "Simbolo{" +
+	           "nombre='" + nombre + '\'' +
+	           ", tipo='" + tipoAImprimir + '\'' +
+	           ", ambito='" + ambito + '\'' +
+	           ", linea=" + lineaDeclaracion +
+	           '}';		
+	
+	}
+}
+package coco;
+
+import static java.lang.System.err;
+
+import java.util.HashMap;
+import java.util.Stack;
+
+public class Tabla {
+	private Stack<HashMap<String, Simbolo>> pilaDeTablas;
+	private String ambitoActual;
+
+	// Metodo constructor; comienza con ambito = 0 (global);
+	public Tabla() {
+		pilaDeTablas = new Stack<>();
+		entrarAmbito("global");
+	}
+
+	// Obtenemos el ambito actual (nombre);
+	public String getAmbitoActual() {
+		return this.ambitoActual;
+	}
+
+	public void entrarAmbito(String nombreAmbito) {
+		this.ambitoActual = nombreAmbito;
+		pilaDeTablas.push(new HashMap<>());
+		// Comentado por el momento.
+		// out.println(">>> Entrando a un nuevo ambito: " + nombreAmbito);
+	}
+
+	public void salirAmbito() {
+		if (!pilaDeTablas.isEmpty()) {
+			String nombreAmbitoSaliente = this.ambitoActual;
+
+			pilaDeTablas.pop();
+
+			if (!pilaDeTablas.isEmpty()) {
+			} else {
+				this.ambitoActual = "global"; // Vuelve al ámbito inicial
+			}
+
+			// Comentado por el momento
+			// out.println("<<< Saliendo del ámbito: " + nombreAmbitoSaliente);
+		}
+	}
+
+	// Para insertar un nuevo simbolo en el ambito actual.
+	public boolean insertar(Simbolo simbolo) {
+		HashMap<String, Simbolo> tablaActual = pilaDeTablas.peek();
+		if (tablaActual.containsKey(simbolo.nombre)) {
+			err.println("?? Linea " + simbolo.lineaDeclaracion + "El identificador " + simbolo.nombre
+					+ "ya ha sido declarado en este ambito.");
+			return false;
+		}
+		tablaActual.put(simbolo.nombre, simbolo);
+		return true;
+	}
+
+	public Simbolo buscar(String nombre) {
+		for (int i = pilaDeTablas.size() - 1; i >= 0; i--) {
+			HashMap<String, Simbolo> tabla = pilaDeTablas.get(i); // El iterador
+			if (tabla.containsKey(nombre)) {
+				return tabla.get(nombre);
+			}
+		}
+		return null; // Si no se encontro en ningun ambito.
+	}
+
+	public void imprimirTabla(java.io.PrintStream destino) {
+		destino.println("--- TABLA DE SIMBOLOS ----------------------------------");
+
+		for (int i = 0; i < pilaDeTablas.size(); i++) {
+			HashMap<String, Simbolo> tabla = pilaDeTablas.get(i);
+
+			String nombreAmbito;
+			if (i == 0) {
+				nombreAmbito = "global";
+			} else {
+				nombreAmbito = "Ámbito Nivel " + i;
+			}
+
+			destino.println("\n== " + nombreAmbito + " (Registros: " + tabla.size() + ") ==");
+
+			destino.printf("%-15s | %-10s | %-10s | %s\n", "NOMBRE", "TIPO", "ÁMBITO", "LINEA");
+			destino.println("-----------------------------------------------------");
+
+			for (Simbolo s : tabla.values()) {
+				destino.printf("%-15s | %-10s | %-10s | %d\n", s.nombre, s.tipo, s.ambito, s.lineaDeclaracion);
+			}
+		}
+		destino.println("------------------------------------ FIN TABLA ------");
+
+	}
+
+	private static Tabla tabla = new Tabla();
+
+	public static Tabla getTabla() {
+		return tabla;
+	}
+
+}
