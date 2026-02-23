@@ -2,8 +2,8 @@ package coco;
 
 import java.io.InputStream;
 import java.io.FileNotFoundException;
-import static java.lang.System.err;
-import static java.lang.System.out;
+import java.io.PrintStream;
+import java.util.List;
 import javacc.GramaticaCoco;
 import javacc.ParseException;
 import javacc.TokenMgrError;
@@ -12,119 +12,87 @@ public class Main {
 
   public static void main(String[] args) {
     Mensaje msj = new Mensaje();
-    
-    if (args.length == 0) 
-    {
-    	msj.adv("Se requiere la ruta del código fuente");
-    	System.exit(1);
+    if (args.length == 0) {
+        msj.adv("Se requiere la ruta del código fuente");
+        System.exit(1);
     }
     
     String rutaArchivo = args[0];
-    try 
-    {
-    	InputStream is = Entrada.obtenerRuta(rutaArchivo);
-    	msj.msjBienvenida("0");
-    	GramaticaCoco parser = new GramaticaCoco(is);
-    	Arbol arbol = parser.Coco();
-    	
-        /*-- TABLA DE SIMBOLOS --*/
-    	coco.Tabla tablaSimbolos = Tabla.getTabla();
-    	String salidaTabla = rutaArchivo + " - SIMBOLOS.txt";
-    	guardarTabla(tablaSimbolos, salidaTabla);
-    	
-        /*-- ARBOL --*/
-    	if (arbol != null)
-    	{
-    		String salidaArbol = rutaArchivo + " - ARBOL.txt";
-    		guardarArbol(arbol, salidaArbol);
-    	}
-    	msj.ok("ANALISIS TERMINADO EXITOSAMENTE");
-    } 
-    catch (FileNotFoundException e)
-    {
-    	msj.error(e.getMessage());
-    	System.exit(1);
-    }
-    catch (TokenMgrError e) // Manejo de errores lexicos.
-    {
-		String emensaje = e.getMessage();
-		String[] lineas = emensaje.split("\n");
-		msj.error("*-- ERROR LEXICO --*");
-		for (int i = 0; i < lineas.length; i++) 
-	    {
-			err.println(" " + lineas[i].trim());
-	    }
-		err.println("  *-- ANALISIS TERMINADO CON ERRORES --*");
-		System.exit(1);
-	}
-    catch (ParseException e) // Manejo de errores sintacticos
-    {
-    	String emensaje = e.getMessage();
-    	String[] lineas = emensaje.split("\n");
-    	msj.adv("*-- ERROR SINTACTICO --*");
-        for (int i = 0; i < lineas.length; i++) 
-        {
-            err.println(" " + lineas[i].trim());
+    GramaticaCoco parser = null;
+    Arbol arbol = null;
+
+    try {
+        InputStream is = Entrada.obtenerRuta(rutaArchivo);
+        msj.msjBienvenida("0");
+        parser = new GramaticaCoco(is);
+        
+        try {
+            arbol = parser.Coco();
+        } catch (TokenMgrError | ParseException e) {
+            GramaticaCoco.registrarError("Error Crítico (Léxico/Sintáctico): " + e.getMessage());
         }
-        err.println("  *-- ANALISIS TERMINADO CON ERRORES --*");
-    	System.exit(1);
-	}
-    catch (Exception e) 
-    {
-		out.println(Colores.AZUL + Colores.UNDERLINE + "Error inesperado " + e.getMessage());
-	}
+
+    } catch (FileNotFoundException e) {
+        msj.error("Archivo no encontrado: " + e.getMessage());
+        return; 
+    } catch (Exception e) {
+        msj.error("Error inesperado: " + e.getMessage());
+    } finally {
+        if (parser != null) {
+            List<String> errores = parser.getListaErrores();
+            
+            if (errores.isEmpty()) {
+                msj.ok("ANÁLISIS COMPLETADO: 0 errores detectados.");
+            } else {
+                msj.adv("ANÁLISIS FINALIZADO: Se encontraron " + errores.size() + " errores.");
+                
+                guardarErrores(errores, rutaArchivo + " - ERRORES.txt");
+            }
+
+            guardarTabla(Tabla.getTabla(), rutaArchivo + " - SIMBOLOS.txt");
+            
+            if (arbol != null) {
+                guardarArbol(arbol, rutaArchivo + " - ARBOL.txt");
+            }
+        }
+    }
   }
-  
-  
-  private static void guardarTabla(coco.Tabla tabla, String rutaSalida) 
-  {
-	  Mensaje msj = new Mensaje();
-	  java.io.PrintStream consolaOriginal = System.out;
-      try 
-      {
-    	  java.io.PrintStream archivoSalida = new java.io.PrintStream(rutaSalida);
-          tabla.imprimirTabla(archivoSalida);
-          archivoSalida.close();
-          System.setOut(consolaOriginal);
-          msj.ok("TABLA DE SIMBOLOS GENERADA EN: \n  " + rutaSalida + "\n");
-      } 
-      catch (FileNotFoundException e) 
-      {
-          System.setOut(consolaOriginal); 
-          msj.error("NO SE GENERO LA TABLA DE SIMBOLOS: \n  " + e.getMessage() + "\n");
-          System.exit(1);
-      } 
-      catch (Exception e) 
-      {
-          System.setOut(consolaOriginal); 
-          throw e;
+
+  private static void guardarErrores(List<String> errores, String rutaSalida) {
+      Mensaje msj = new Mensaje();
+      try (PrintStream archivo = new PrintStream(rutaSalida)) {
+          archivo.println("--- DETALLE DE ERRORES ENCONTRADOS ---");
+          for (String error : errores) {
+              archivo.println("- " + error);
+          }
+          msj.ok("DETALLE DE ERRORES GENERADO EN: \n  " + rutaSalida + "\n");
+      } catch (FileNotFoundException e) {
+          msj.error("No se pudo crear el archivo de errores: " + e.getMessage());
       }
   }
   
-  private static void guardarArbol(Arbol arbol, String rutaSalida) 
-  {
+  private static void guardarTabla(coco.Tabla tabla, String rutaSalida) {
+      Mensaje msj = new Mensaje();
+      try (PrintStream archivoSalida = new PrintStream(rutaSalida)) {
+          tabla.imprimirTabla(archivoSalida);
+          msj.ok("TABLA DE SIMBOLOS GENERADA EN: \n  " + rutaSalida + "\n");
+      } catch (Exception e) {
+          msj.error("Error al generar tabla de símbolos: " + e.getMessage());
+      }
+  }
+  
+  private static void guardarArbol(Arbol arbol, String rutaSalida) {
     Mensaje msj = new Mensaje();
-    if (arbol == null) return;        
-    java.io.PrintStream consolaOriginal = System.out;
-    try 
-    {
-      System.setOut(new java.io.PrintStream(rutaSalida));
+    if (arbol == null) return;
+    PrintStream consolaOriginal = System.out;
+    try (PrintStream archivoArbol = new PrintStream(rutaSalida)) {
+      System.setOut(archivoArbol);
       arbol.imprimirArbol(0);
-      System.out.flush();
       System.setOut(consolaOriginal);
       msj.ok("ARBOL GENERADO EN: \n  " + rutaSalida + "\n");
-    } 
-    catch (FileNotFoundException e) 
-    {
+    } catch (Exception e) {
       System.setOut(consolaOriginal);
-      msj.error("NO SE GENERO LA TABLA DE SIMBOLOS: \n  " + e.getMessage() + "\n");
-
-    } 
-    catch (Exception e) 
-    {
-            System.setOut(consolaOriginal);
-            throw e;
-    }
-  }
+      msj.error("Error al generar el árbol: " + e.getMessage());
+	}
 }
-
+}

@@ -8,6 +8,56 @@ import coco.Colores;
 
 public class GramaticaCoco implements GramaticaCocoConstants {
   private Tabla tabla = new Tabla();
+  private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
+
+  public static void registrarError(String msj)
+  {
+    listaErrores.add(msj);
+  }
+
+  public java.util.List<String> getListaErrores()
+  {
+    return listaErrores;
+  }
+
+  // Para recuperarse de errores sintacticos
+  void recuperacionSintactica() throws ParseException {
+    Token t;
+    while (true) {
+        t = getToken(1);
+        if (t.kind == EOF) break; // Si es fin de archivo, parar
+
+        // Si encontramos un punto y coma, lo consumimos y salimos
+        if (t.kind == PUNTOYCOMA) {
+            consumeToken(PUNTOYCOMA);
+            return;
+        }
+
+        // Si encontramos una llave de cierre, NO la consumimos (pertenece al bloque padre)
+        // pero salimos para que el bloque padre se encargue.
+        if (t.kind == LLAVE_CIERRA || t.kind == FINAL) {
+            return;
+        }
+
+          if (t.kind == ELSE) {
+            return;
+        }
+
+        // Si encontramos el inicio de otra sentencia, paramos ahí para intentar parsear esa nueva sentencia.
+        if (t.kind == VAR || t.kind == IF || t.kind == BUCLE_FOR ||
+            t.kind == BUCLE_WHILE || t.kind == SWITCH || t.kind == RETURN ||
+            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC) {
+            return;
+        }
+
+        // Si no es nada anterior, detodas maneras se consume para seguir avanzando
+        consumeToken(t.kind);
+    }
+  }
+
+  void consumeToken(int kind) throws ParseException {
+    jj_consume_token(kind);
+  }
 
   final public Arbol Coco() throws ParseException {Arbol raiz = new Arbol("Ra\u00edz");
   Arbol fn, stmt;
@@ -23,8 +73,15 @@ public class GramaticaCoco implements GramaticaCocoConstants {
         jj_la1[0] = jj_gen;
         break label_1;
       }
-      fn = funcion();
+      try {
+        fn = funcion();
 raiz.agregarHijo(fn);
+      } catch (ParseException e) {
+Token errorTok = e.currentToken;
+          registrarError("Error Sint\u00e1ctico: L\u00ednea " + errorTok.beginLine + ", columna " + errorTok.beginColumn +
+          ". " + e.getMessage());
+          recuperacionSintactica();
+      }
     }
     t_inicio = jj_consume_token(INICIO);
 raiz.agregarHijo(new Arbol("Token: " + t_inicio.image));
@@ -52,8 +109,15 @@ raiz.agregarHijo(new Arbol("Token: " + t_inicio.image));
         jj_la1[1] = jj_gen;
         break label_2;
       }
-      stmt = sentencia();
+      try {
+        stmt = sentencia();
 raiz.agregarHijo(stmt);
+      } catch (ParseException e) {
+Token errorTok = e.currentToken;
+          registrarError("Error Sint\u00e1ctico: L\u00ednea " + errorTok.beginLine + ", columna " + errorTok.beginColumn +
+          ". " + e.getMessage());
+          recuperacionSintactica();
+      }
     }
     t_final = jj_consume_token(FINAL);
 raiz.agregarHijo(new Arbol("Token: " + t_final.image));
@@ -178,8 +242,15 @@ nodoBloque.agregarHijo(new Arbol ("Token: " + t_llave_a.image));
         jj_la1[4] = jj_gen;
         break label_4;
       }
-      sentencia = sentencia();
+      try {
+        sentencia = sentencia();
 nodoBloque.agregarHijo(sentencia);
+      } catch (ParseException e) {
+Token errorTok = e.currentToken;
+      registrarError("Error Sint\u00e1ctico: L\u00ednea " + errorTok.beginLine + ", columna " + errorTok.beginColumn +
+      ". " + e.getMessage());
+      recuperacionSintactica();
+      }
     }
     t_llave_c = jj_consume_token(LLAVE_CIERRA);
 nodoBloque.agregarHijo(new Arbol ("Token: " + t_llave_c.image));
@@ -281,8 +352,8 @@ nodo.agregarHijo(new Arbol("ID_Asignacion: " + t_id.image));
 
       if (simboloUsado == null)
         {
-          System.err.println("Error ??? L\u00ednea: " + t_id.beginLine + " La variable '" + t_id.image
-            + "' no ha sido declarada.");
+          registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+          " La variable '" + t_id.image + "' no ha sido declarada.");
         }
         t_asig = jj_consume_token(OP_ASIGNACION);
 nodo.agregarHijo(new Arbol("Token: " + t_asig.image));
@@ -321,6 +392,17 @@ nodoRetorno.agregarHijo(new Arbol ("Token: " + t_pc.image));
   Token t_id, t_pa, t_pc, t_coma;
     t_id = jj_consume_token(ID);
 nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_id.image));
+
+    Simbolo simbolo = tabla.buscar(t_id.image);
+    if (simbolo == null)
+    {
+      registrarError("Error Semantico: L\u00ednea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " La funci\u00f3n '" + t_id.image + "' no ha sido declarada.");
+    }
+    else if (!simbolo.tipo.equals("funcion"))
+    {
+      registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image
+      + "' no es una funci\u00f3n (es de tipo '" + simbolo.tipo + "').");
+    }
     t_pa = jj_consume_token(PAREN_ABRE);
 nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pa.image));
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -576,76 +658,89 @@ nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pc.image));
 {if ("" != null) return new Arbol("Literal_CADENA_DE_CARACTERES: " + t.image);}
       break;
       }
-    case ID:{
-      t = jj_consume_token(ID);
+    default:
+      jj_la1[15] = jj_gen;
+      if (jj_2_3(2147483647)) {
+        nodo = llamadaFuncion();
+{if ("" != null) return nodo;}
+      } else {
+        switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+        case ID:{
+          t = jj_consume_token(ID);
 Simbolo simboloUsado = tabla.buscar(t.image);
     if (simboloUsado == null)
     {
       // Error por ambitos !S
-      System.err.println("Error Semantico ??? [:v] L\u00ednea: " + t.beginLine + " La variable o funci\u00f3n '"
-        + t.image + "' no ha sido declarada.");
+      /*System.err.println("Error Semantico ??? [:v] Línea: " + t.beginLine + " La variable o función '" 
+        + t.image + "' no ha sido declarada.");*/
+
+                registrarError("Error Semantico: L\u00ednea " + t.beginLine + ", columna " + t.beginColumn + " La variable o funcion '" + t.image + "' no ha sido declarada.");
     }
     /**/
         Simbolo simbolo = tabla.buscar(t.image);
         if (simbolo != null && simbolo.tipo.equals("funcion"))
         {
-          System.err.println(Colores.ROJO + "Error: '" + t.image + "' es una funci\u00f3n, debe llamarse con ()");
+          //System.err.println(Colores.ROJO + "Error: '" + t.image + "' es una función, debe llamarse con ()");
+          //registrarError("Error: Línea " + t.beginLine + " La funcion'" + t.image + "' no ha sido declarada.");
+          registrarError("Error Semantico: L\u00ednea " + t.beginLine + ", columna " + t.beginColumn + " La funci\u00f3n '" + t.image + "' no puede usarse como variable (falta llamar con '()').");
         }
 
     {if ("" != null) return new Arbol("Literal_IDENTIFICADOR: " + t.image);}
-      break;
-      }
-    case PAREN_ABRE:{
-      parA = jj_consume_token(PAREN_ABRE);
-      nodo = expresion();
-      parC = jj_consume_token(PAREN_CIERRA);
+          break;
+          }
+        case PAREN_ABRE:{
+          parA = jj_consume_token(PAREN_ABRE);
+          nodo = expresion();
+          parC = jj_consume_token(PAREN_CIERRA);
 Arbol nodoAgrupacion = new Arbol("Agrupacion");
     nodoAgrupacion.agregarHijo(new Arbol("Token: " + parA.image));
     nodoAgrupacion.agregarHijo(nodo);
     nodoAgrupacion.agregarHijo(new Arbol("Token: " + parC.image));
     {if ("" != null) return nodoAgrupacion;}
-      break;
-      }
-    case OP_NOT:{
-      t = jj_consume_token(OP_NOT);
-      nodo = factor();
+          break;
+          }
+        case OP_NOT:{
+          t = jj_consume_token(OP_NOT);
+          nodo = factor();
 Arbol nodoUnario = new Arbol("Unario_NOT");
     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
     nodoUnario.agregarHijo(nodo);
     {if ("" != null) return nodoUnario;}
-      break;
-      }
-    case OP_INCREMENTO:{
-      t = jj_consume_token(OP_INCREMENTO);
-      nodo = factor();
+          break;
+          }
+        case OP_INCREMENTO:{
+          t = jj_consume_token(OP_INCREMENTO);
+          nodo = factor();
 Arbol nodoUnario = new Arbol("Unario_INC");
      nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
      nodoUnario.agregarHijo(nodo);
      {if ("" != null) return nodoUnario;}
-      break;
-      }
-    case OP_DECREMENTO:{
-      t = jj_consume_token(OP_DECREMENTO);
-      nodo = factor();
+          break;
+          }
+        case OP_DECREMENTO:{
+          t = jj_consume_token(OP_DECREMENTO);
+          nodo = factor();
 Arbol nodoUnario = new Arbol("Unario_DEC");
     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
     nodoUnario.agregarHijo(nodo);
     {if ("" != null) return nodoUnario;}
-      break;
-      }
-    case OP_RESTA:{
-      t = jj_consume_token(OP_RESTA);
-      nodo = factor();
+          break;
+          }
+        case OP_RESTA:{
+          t = jj_consume_token(OP_RESTA);
+          nodo = factor();
 Arbol nodoUnario = new Arbol("Unario_RESTA");
     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
     nodoUnario.agregarHijo(nodo);
     {if ("" != null) return nodoUnario;}
-      break;
+          break;
+          }
+        default:
+          jj_la1[16] = jj_gen;
+          jj_consume_token(-1);
+          throw new ParseException();
+        }
       }
-    default:
-      jj_la1[15] = jj_gen;
-      jj_consume_token(-1);
-      throw new ParseException();
     }
     throw new Error("Missing return statement in function");
 }
@@ -677,7 +772,7 @@ nodoDeclaracion.agregarHijo(exp);
       break;
       }
     default:
-      jj_la1[16] = jj_gen;
+      jj_la1[17] = jj_gen;
       ;
     }
     // - > Solo si hay una asignacion.
@@ -718,8 +813,10 @@ nodoEntrada.agregarHijo(new Arbol("Token: " + t_id.image));
         Simbolo simboloEntrada = tabla.buscar(t_id.image);
     if (simboloEntrada == null)
     {
-      System.err.println("Error ??? L\u00ednea: " + t_id.beginLine + ": La variable '" + t_id.image
-        + "' para entrada no ha sido declarada.");
+     /* System.err.println("Error ??? Línea: " + t_id.beginLine + ": La variable '" + t_id.image
+        + "' para entrada no ha sido declarada.");*/
+
+      registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn + " La variable '" + t_id.image + "' para acceder no ha sido declarada");
     }
     t_pc = jj_consume_token(PAREN_CIERRA);
 nodoEntrada.agregarHijo(new Arbol("Token: " + t_pc.image));
@@ -764,7 +861,7 @@ nodoDimensionVector.agregarHijo(new Arbol("Token: " + t_id.image));
       break;
       }
     default:
-      jj_la1[17] = jj_gen;
+      jj_la1[18] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
@@ -782,13 +879,18 @@ nodoAccesoVec.agregarHijo(new Arbol("ID_Vector: " + t_id.image));
 
     if (simboloVector == null)
     {
-      System.err.println("Error ??? L\u00ednea: " + t_id.beginLine + ": El vector '" + t_id.image
-        + "' no ha sido declarado.");
+      /*System.err.println("Error ??? Línea: " + t_id.beginLine + ": El vector '" + t_id.image
+        + "' no ha sido declarado.");*/
+
+          registrarError("Error Semantico: L\u00ednea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " El vector '" + t_id.image + "' no ha sido declarado.");
+
     }
     else if (!"vector".equals(simboloVector.tipo))
     {
-      System.err.println("Error ??? L\u00ednea: " + t_id.beginLine + ": El identificador '" + t_id.image
-        + "' no es un vector.");
+      /*System.err.println("Error ??? Línea: " + t_id.beginLine + ": El identificador '" + t_id.image
+        + "' no es un vector.");*/
+
+      registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image + "' no es un vector.");
     }
     t_ca = jj_consume_token(CORCHETE_ABRE);
 nodoAccesoVec.agregarHijo(new Arbol("Token: " + t_ca.image));
@@ -805,18 +907,20 @@ nodoAccesoVec.agregarHijo(new Arbol("ID_Indice: " + t_id.image));
       Simbolo simboloIndice = tabla.buscar(t_id.image);
       if (simboloIndice == null)
       {
-        System.err.println("Error ??? L\u00ednea: " + t_id.beginLine + ": La variable para el \u00edndice '"
-          + t_id.image + "' no ha sido declarada.");
+        /*System.err.println("Error ??? Línea: " + t_id.beginLine + ": La variable para el índice '"
+          + t_id.image + "' no ha sido declarada.");*/
+        registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn + " La variable para el indice '" + t_id.image + "' no ha sido declarada.");
       }
       else if (!"int".equals(simboloIndice.tipo))
       {
-        System.err.println("Error ??? L\u00ednea: " + t_id.beginLine
-          + ": El \u00edndice del vector debe ser de tipo entero, pero se encontr\u00f3 '" + simboloIndice.tipo + "'.");
+       /*System.err.println("Error ??? Línea: " + t_id.beginLine
+          + ": El índice del vector debe ser de tipo entero, pero se encontró '" + simboloIndice.tipo + "'.");*/
+        registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El indice debe ser un entero, pero se encontr\u00f3 '" + simboloIndice.tipo + "'");
       }
       break;
       }
     default:
-      jj_la1[18] = jj_gen;
+      jj_la1[19] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
@@ -856,7 +960,7 @@ nodoBucleFor.agregarHijo(condicion);
       break;
       }
     default:
-      jj_la1[19] = jj_gen;
+      jj_la1[20] = jj_gen;
       ;
     }
     t_pyc2 = jj_consume_token(PUNTOYCOMA);
@@ -868,7 +972,7 @@ nodoBucleFor.agregarHijo(actualizacion);
       break;
       }
     default:
-      jj_la1[20] = jj_gen;
+      jj_la1[21] = jj_gen;
       ;
     }
     t_pc = jj_consume_token(PAREN_CIERRA);
@@ -896,7 +1000,7 @@ nodoIniFor.agregarHijo(asigVar);
       break;
       }
     default:
-      jj_la1[21] = jj_gen;
+      jj_la1[22] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
@@ -907,7 +1011,7 @@ nodoIniFor.agregarHijo(asigVar);
   final public Arbol asignacionSinPuntoYComa() throws ParseException {Arbol nodoAsignacion = new Arbol("AsignacionSinPuntoYComa");
   Arbol accVector, exp;
   Token t_id, t_asig;
-    if (jj_2_3(3)) {
+    if (jj_2_4(3)) {
       t_id = jj_consume_token(ID);
 nodoAsignacion.agregarHijo(new Arbol("ID_Asignacion: " + t_id.image));
       t_asig = jj_consume_token(OP_ASIGNACION);
@@ -928,7 +1032,7 @@ nodoAsignacion.agregarHijo(exp);
         break;
         }
       default:
-        jj_la1[22] = jj_gen;
+        jj_la1[23] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
@@ -950,7 +1054,7 @@ nodoActualizacion.agregarHijo(asig);
         break;
         }
       default:
-        jj_la1[23] = jj_gen;
+        jj_la1[24] = jj_gen;
         break label_9;
       }
       t_coma = jj_consume_token(COMA);
@@ -1021,14 +1125,14 @@ nodoIf.agregarHijo(bloqueElse);
         break;
         }
       default:
-        jj_la1[24] = jj_gen;
+        jj_la1[25] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
       break;
       }
     default:
-      jj_la1[25] = jj_gen;
+      jj_la1[26] = jj_gen;
       ;
     }
 {if ("" != null) return nodoIf;}
@@ -1056,7 +1160,7 @@ nodoSwitch.agregarHijo(new Arbol("Token: " + t_lla.image));
         break;
         }
       default:
-        jj_la1[26] = jj_gen;
+        jj_la1[27] = jj_gen;
         break label_10;
       }
       caso = caseSwitch();
@@ -1069,7 +1173,7 @@ nodoSwitch.agregarHijo(defecto);
       break;
       }
     default:
-      jj_la1[27] = jj_gen;
+      jj_la1[28] = jj_gen;
       ;
     }
     t_llc = jj_consume_token(LLAVE_CIERRA);
@@ -1096,7 +1200,7 @@ nodoCase.agregarHijo(new Arbol("Valor_Case_STRING: " + t_valor.image));
       break;
       }
     default:
-      jj_la1[28] = jj_gen;
+      jj_la1[29] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
@@ -1123,7 +1227,7 @@ nodoCase.agregarHijo(new Arbol("Token: " + t_dospuntos.image));
         break;
         }
       default:
-        jj_la1[29] = jj_gen;
+        jj_la1[30] = jj_gen;
         break label_11;
       }
       sentencia = sentencia();
@@ -1136,7 +1240,7 @@ nodoCase.agregarHijo(breakSentencia);
       break;
       }
     default:
-      jj_la1[30] = jj_gen;
+      jj_la1[31] = jj_gen;
       ;
     }
 {if ("" != null) return nodoCase;}
@@ -1181,7 +1285,7 @@ nodoDefault.agregarHijo(new Arbol("Token: " + t_dospuntos.image));
         break;
         }
       default:
-        jj_la1[31] = jj_gen;
+        jj_la1[32] = jj_gen;
         break label_12;
       }
       sentencia = sentencia();
@@ -1194,7 +1298,7 @@ nodoDefault.agregarHijo(breakSentencia);
       break;
       }
     default:
-      jj_la1[32] = jj_gen;
+      jj_la1[33] = jj_gen;
       ;
     }
 {if ("" != null) return nodoDefault;}
@@ -1232,7 +1336,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
       break;
       }
     default:
-      jj_la1[33] = jj_gen;
+      jj_la1[34] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
@@ -1263,155 +1367,165 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     finally { jj_save(2, xla); }
   }
 
-  private boolean jj_3R_llamadaFuncion_325_3_13()
+  private boolean jj_2_4(int xla)
+ {
+    jj_la = xla; jj_lastpos = jj_scanpos = token;
+    try { return (!jj_3_4()); }
+    catch(LookaheadSuccess ls) { return true; }
+    finally { jj_save(3, xla); }
+  }
+
+  private boolean jj_3R_factor_604_5_27()
+ {
+    if (jj_scan_token(PAREN_ABRE)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_llamadaFuncion_416_3_13()
  {
     if (jj_scan_token(ID)) return true;
     if (jj_scan_token(PAREN_ABRE)) return true;
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_llamadaFuncion_329_5_16()) jj_scanpos = xsp;
+    if (jj_3R_llamadaFuncion_435_5_16()) jj_scanpos = xsp;
     if (jj_scan_token(PAREN_CIERRA)) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_690_11_18()
+  private boolean jj_3R_expresion_457_3_15()
+ {
+    if (jj_3R_expresionRelacional_493_3_19()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_785_3_14()
  {
     if (jj_scan_token(ID)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_507_5_28()
- {
-    if (jj_scan_token(OP_INCREMENTO)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_accesoVector_689_7_17()
- {
-    if (jj_scan_token(ENTERO)) return true;
+    if (jj_scan_token(CORCHETE_ABRE)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_accesoVector_811_7_17()) {
+    jj_scanpos = xsp;
+    if (jj_3R_accesoVector_812_11_18()) return true;
+    }
     return false;
   }
 
   private boolean jj_3_2()
  {
-    if (jj_3R_accesoVector_668_3_14()) return true;
+    if (jj_3R_accesoVector_785_3_14()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_499_5_27()
+  private boolean jj_3R_factor_638_5_31()
  {
-    if (jj_scan_token(OP_NOT)) return true;
+    if (jj_scan_token(OP_RESTA)) return true;
     return false;
   }
 
   private boolean jj_3_1()
  {
-    if (jj_3R_llamadaFuncion_325_3_13()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_expresion_351_3_15()
- {
-    if (jj_3R_expresionRelacional_387_3_19()) return true;
+    if (jj_3R_llamadaFuncion_416_3_13()) return true;
     return false;
   }
 
   private boolean jj_3_3()
  {
     if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(OP_ASIGNACION)) return true;
-    if (jj_3R_expresion_351_3_15()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_489_5_26()
- {
     if (jj_scan_token(PAREN_ABRE)) return true;
     return false;
   }
 
-  private boolean jj_3R_expresionRelacional_387_3_19()
+  private boolean jj_3R_expresionRelacional_493_3_19()
  {
-    if (jj_3R_termino_428_3_20()) return true;
+    if (jj_3R_termino_534_3_20()) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_668_3_14()
- {
-    if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(CORCHETE_ABRE)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_accesoVector_689_7_17()) {
-    jj_scanpos = xsp;
-    if (jj_3R_accesoVector_690_11_18()) return true;
-    }
-    return false;
-  }
-
-  private boolean jj_3R_factor_523_5_30()
- {
-    if (jj_scan_token(OP_RESTA)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_termino_428_3_20()
- {
-    if (jj_3R_factor_467_5_21()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_llamadaFuncion_329_5_16()
- {
-    if (jj_3R_expresion_351_3_15()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_470_5_25()
- {
-    if (jj_scan_token(ID)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_469_5_24()
- {
-    if (jj_scan_token(STR)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_515_5_29()
+  private boolean jj_3R_factor_630_5_30()
  {
     if (jj_scan_token(OP_DECREMENTO)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_468_5_23()
+  private boolean jj_3R_accesoVector_812_11_18()
+ {
+    if (jj_scan_token(ID)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_581_5_26()
+ {
+    if (jj_scan_token(ID)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_termino_534_3_20()
+ {
+    if (jj_3R_factor_573_5_21()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_811_7_17()
+ {
+    if (jj_scan_token(ENTERO)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_llamadaFuncion_435_5_16()
+ {
+    if (jj_3R_expresion_457_3_15()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_576_5_25()
+ {
+    if (jj_3R_llamadaFuncion_416_3_13()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_622_5_29()
+ {
+    if (jj_scan_token(OP_INCREMENTO)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_575_5_24()
+ {
+    if (jj_scan_token(STR)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_574_5_23()
  {
     if (jj_scan_token(NUM_FLOTANTE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_467_5_21()
+  private boolean jj_3R_factor_573_5_21()
  {
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_factor_467_5_22()) {
+    if (jj_3R_factor_573_5_22()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_468_5_23()) {
+    if (jj_3R_factor_574_5_23()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_469_5_24()) {
+    if (jj_3R_factor_575_5_24()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_470_5_25()) {
+    if (jj_3R_factor_576_5_25()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_489_5_26()) {
+    if (jj_3R_factor_581_5_26()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_499_5_27()) {
+    if (jj_3R_factor_604_5_27()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_507_5_28()) {
+    if (jj_3R_factor_614_5_28()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_515_5_29()) {
+    if (jj_3R_factor_622_5_29()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_523_5_30()) return true;
+    if (jj_3R_factor_630_5_30()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_638_5_31()) return true;
+    }
     }
     }
     }
@@ -1423,9 +1537,23 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
-  private boolean jj_3R_factor_467_5_22()
+  private boolean jj_3R_factor_573_5_22()
  {
     if (jj_scan_token(NUM_ENTERO)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_614_5_28()
+ {
+    if (jj_scan_token(OP_NOT)) return true;
+    return false;
+  }
+
+  private boolean jj_3_4()
+ {
+    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(OP_ASIGNACION)) return true;
+    if (jj_3R_expresion_457_3_15()) return true;
     return false;
   }
 
@@ -1440,7 +1568,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
   private Token jj_scanpos, jj_lastpos;
   private int jj_la;
   private int jj_gen;
-  final private int[] jj_la1 = new int[34];
+  final private int[] jj_la1 = new int[35];
   static private int[] jj_la1_0;
   static private int[] jj_la1_1;
   static {
@@ -1448,12 +1576,12 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	   jj_la1_init_1();
 	}
 	private static void jj_la1_init_0() {
-	   jj_la1_0 = new int[] {0x0,0x7c0,0x800,0x7c0,0x7c0,0x7c0,0x0,0x800,0x98400000,0x40600000,0x40600000,0x1f8000,0x1f8000,0x23800000,0x23800000,0x98400000,0x4000000,0x40,0x40,0x98400000,0x0,0x0,0x0,0x800,0x0,0x0,0x0,0x0,0x40,0x7c0,0x0,0x7c0,0x0,0x7c0,};
+	   jj_la1_0 = new int[] {0x0,0x7c0,0x800,0x7c0,0x7c0,0x7c0,0x0,0x800,0x98400000,0x40600000,0x40600000,0x1f8000,0x1f8000,0x23800000,0x23800000,0x0,0x98400000,0x4000000,0x40,0x40,0x98400000,0x0,0x0,0x0,0x800,0x0,0x0,0x0,0x0,0x40,0x7c0,0x0,0x7c0,0x0,0x7c0,};
 	}
 	private static void jj_la1_init_1() {
-	   jj_la1_1 = new int[] {0x20000,0x9d00c5,0x0,0x0,0x9d00c5,0x9d00c5,0x800000,0x0,0x1e00100,0x0,0x0,0x0,0x0,0x0,0x0,0x1e00100,0x0,0x800000,0x800000,0x1e00100,0x800000,0x810000,0x800000,0x0,0x401,0x2,0x8,0x10,0x1000000,0x9d00c5,0x20,0x9d00c5,0x20,0x0,};
+	   jj_la1_1 = new int[] {0x20000,0x9d00c5,0x0,0x0,0x9d00c5,0x9d00c5,0x800000,0x0,0x1e00100,0x0,0x0,0x0,0x0,0x0,0x0,0x1600000,0x800100,0x0,0x800000,0x800000,0x1e00100,0x800000,0x810000,0x800000,0x0,0x401,0x2,0x8,0x10,0x1000000,0x9d00c5,0x20,0x9d00c5,0x20,0x0,};
 	}
-  final private JJCalls[] jj_2_rtns = new JJCalls[3];
+  final private JJCalls[] jj_2_rtns = new JJCalls[4];
   private boolean jj_rescan = false;
   private int jj_gc = 0;
 
@@ -1468,7 +1596,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	 token = new Token();
 	 jj_ntk = -1;
 	 jj_gen = 0;
-	 for (int i = 0; i < 34; i++) jj_la1[i] = -1;
+	 for (int i = 0; i < 35; i++) jj_la1[i] = -1;
 	 for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -1483,7 +1611,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	 token = new Token();
 	 jj_ntk = -1;
 	 jj_gen = 0;
-	 for (int i = 0; i < 34; i++) jj_la1[i] = -1;
+	 for (int i = 0; i < 35; i++) jj_la1[i] = -1;
 	 for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -1494,7 +1622,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	 token = new Token();
 	 jj_ntk = -1;
 	 jj_gen = 0;
-	 for (int i = 0; i < 34; i++) jj_la1[i] = -1;
+	 for (int i = 0; i < 35; i++) jj_la1[i] = -1;
 	 for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -1513,7 +1641,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	 token = new Token();
 	 jj_ntk = -1;
 	 jj_gen = 0;
-	 for (int i = 0; i < 34; i++) jj_la1[i] = -1;
+	 for (int i = 0; i < 35; i++) jj_la1[i] = -1;
 	 for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -1523,7 +1651,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	 token = new Token();
 	 jj_ntk = -1;
 	 jj_gen = 0;
-	 for (int i = 0; i < 34; i++) jj_la1[i] = -1;
+	 for (int i = 0; i < 35; i++) jj_la1[i] = -1;
 	 for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -1533,7 +1661,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	 token = new Token();
 	 jj_ntk = -1;
 	 jj_gen = 0;
-	 for (int i = 0; i < 34; i++) jj_la1[i] = -1;
+	 for (int i = 0; i < 35; i++) jj_la1[i] = -1;
 	 for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -1664,12 +1792,12 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
   /** Generate ParseException. */
   public ParseException generateParseException() {
 	 jj_expentries.clear();
-	 boolean[] la1tokens = new boolean[57];
+	 boolean[] la1tokens = new boolean[58];
 	 if (jj_kind >= 0) {
 	   la1tokens[jj_kind] = true;
 	   jj_kind = -1;
 	 }
-	 for (int i = 0; i < 34; i++) {
+	 for (int i = 0; i < 35; i++) {
 	   if (jj_la1[i] == jj_gen) {
 		 for (int j = 0; j < 32; j++) {
 		   if ((jj_la1_0[i] & (1<<j)) != 0) {
@@ -1681,7 +1809,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 		 }
 	   }
 	 }
-	 for (int i = 0; i < 57; i++) {
+	 for (int i = 0; i < 58; i++) {
 	   if (la1tokens[i]) {
 		 jj_expentry = new int[1];
 		 jj_expentry[0] = i;
@@ -1715,7 +1843,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 
   private void jj_rescan_token() {
 	 jj_rescan = true;
-	 for (int i = 0; i < 3; i++) {
+	 for (int i = 0; i < 4; i++) {
 	   try {
 		 JJCalls p = jj_2_rtns[i];
 
@@ -1726,6 +1854,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 			   case 0: jj_3_1(); break;
 			   case 1: jj_3_2(); break;
 			   case 2: jj_3_3(); break;
+			   case 3: jj_3_4(); break;
 			 }
 		   }
 		   p = p.next;

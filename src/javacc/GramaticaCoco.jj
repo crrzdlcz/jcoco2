@@ -13,6 +13,56 @@ import coco.Colores;
 public class GramaticaCoco
 {
   private Tabla tabla = new Tabla();
+  private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
+
+  public static void registrarError(String msj)
+  {
+    listaErrores.add(msj);
+  }
+
+  public java.util.List<String> getListaErrores()
+  {
+    return listaErrores;
+  }
+
+  // Para recuperarse de errores sintacticos
+  void recuperacionSintactica() throws ParseException {
+    Token t;
+    while (true) {
+        t = getToken(1);
+        if (t.kind == EOF) break; // Si es fin de archivo, parar
+
+        // Si encontramos un punto y coma, lo consumimos y salimos
+        if (t.kind == PUNTOYCOMA) {
+            consumeToken(PUNTOYCOMA);
+            return;
+        }
+        
+        // Si encontramos una llave de cierre, NO la consumimos (pertenece al bloque padre)
+        // pero salimos para que el bloque padre se encargue.
+        if (t.kind == LLAVE_CIERRA || t.kind == FINAL) {
+            return;
+        }
+
+          if (t.kind == ELSE) {
+            return;
+        }
+        
+        // Si encontramos el inicio de otra sentencia, paramos ahí para intentar parsear esa nueva sentencia.
+        if (t.kind == VAR || t.kind == IF || t.kind == BUCLE_FOR || 
+            t.kind == BUCLE_WHILE || t.kind == SWITCH || t.kind == RETURN || 
+            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC) {
+            return;
+        }
+        
+        // Si no es nada anterior, detodas maneras se consume para seguir avanzando
+        consumeToken(t.kind);
+    }
+  }
+
+  void consumeToken(int kind) throws ParseException {
+    jj_consume_token(kind);
+  }
 }
 
 PARSER_END(GramaticaCoco)
@@ -98,7 +148,16 @@ TOKEN :
 | < NUM_ENTERO : (["0" - "9"])+ >
 | < ID : (["a" - "z", "A" - "Z", "_"]) (["a" - "z", "A" - "Z", "0" - "9", "_"])* >
 | < STR : "\"" (~["\n", "\r", "\""])* "\"" >
+}
 
+SKIP :
+{
+  < UNKNOWN: ~[] > 
+  {
+    int columna = input_stream.getColumn() - 1;
+    int linea = input_stream.getLine();
+    GramaticaCoco.registrarError("Error Léxico: Carácter inválido '" + image.toString() + "' en línea " + linea +  ", columna: " + columna);
+  }
 }
 
 Arbol Coco() :
@@ -108,22 +167,40 @@ Arbol Coco() :
   Token t_inicio, t_final; 
 }
 {
-  ( fn =  funcion() {raiz.agregarHijo(fn);} )*
+  (
+	// Try catch para la recuperacion sintactica.
+	try
+	{
+	  fn =  funcion() {raiz.agregarHijo(fn);}
+	}
+    catch (ParseException e)
+    {
+      Token errorTok = e.currentToken;
+	  registrarError("Error Sintáctico: Línea " + errorTok.beginLine + ", columna " + errorTok.beginColumn +
+	  ". " + e.getMessage());
+	  recuperacionSintactica();
+    }
+  )*
 	
-  t_inicio = <INICIO>
-  {
-    raiz.agregarHijo(new Arbol("Token: " + t_inicio.image));
-  }
-	
-  ( stmt = sentencia() {raiz.agregarHijo(stmt);} )*
-	
-  t_final = <FINAL>
-	
-  {
-    raiz.agregarHijo(new Arbol("Token: " + t_final.image));
-  }
-  <EOF>
+  t_inicio = <INICIO> { raiz.agregarHijo(new Arbol("Token: " + t_inicio.image)); }
 
+  // Sentencias principales.
+  (
+    try
+    { 
+      stmt = sentencia() {raiz.agregarHijo(stmt);}
+  	}
+  	catch (ParseException e)
+  	{
+  	  Token errorTok = e.currentToken;
+  	  registrarError("Error Sintáctico: Línea " + errorTok.beginLine + ", columna " + errorTok.beginColumn +
+  	  ". " + e.getMessage());
+  	  recuperacionSintactica();
+  	}
+  )*
+	
+  t_final = <FINAL> { raiz.agregarHijo(new Arbol("Token: " + t_final.image)); }
+  <EOF>
   { return raiz; }
 }
 
@@ -224,7 +301,21 @@ Arbol bloqueDeCodigo() :
     tabla.entrarAmbito("bloque_" + t_llave_a.beginLine);
   }
 
-  ( sentencia = sentencia() { nodoBloque.agregarHijo(sentencia); } )*
+
+  /**-- Recuperacion dentro de bloques de código. --*/
+  (
+    try
+    { 
+      sentencia = sentencia() { nodoBloque.agregarHijo(sentencia); }
+    }
+    catch (ParseException e)
+    {
+      Token errorTok = e.currentToken;
+      registrarError("Error Sintáctico: Línea " + errorTok.beginLine + ", columna " + errorTok.beginColumn +
+      ". " + e.getMessage());
+      recuperacionSintactica();
+    }
+  )*
 
   t_llave_c = <LLAVE_CIERRA>
   {
@@ -285,8 +376,8 @@ Arbol sentenciasConIdentificador() :
 
       if (simboloUsado == null)
         {
-          System.err.println("Error ??? Línea: " + t_id.beginLine + " La variable '" + t_id.image
-            + "' no ha sido declarada.");
+          registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+          " La variable '" + t_id.image + "' no ha sido declarada.");
         }
     }
   	  	
@@ -322,7 +413,22 @@ Arbol llamadaFuncion() :
   Token t_id, t_pa, t_pc, t_coma; 
 }
 {
-  t_id = <ID> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_id.image)); }
+  t_id = <ID>
+  {
+    nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_id.image));
+
+    Simbolo simbolo = tabla.buscar(t_id.image);
+    if (simbolo == null)
+    {
+      registrarError("Error Semantico: Línea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " La función '" + t_id.image + "' no ha sido declarada.");
+    }
+    else if (!simbolo.tipo.equals("funcion"))
+    {
+      registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image
+      + "' no es una función (es de tipo '" + simbolo.tipo + "').");      
+    }
+    
+  }
   t_pa = <PAREN_ABRE> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pa.image)); }
 
   (
@@ -467,20 +573,29 @@ Arbol factor() :
     t = <NUM_ENTERO> { return new Arbol("Literal_INT: " + t.image); }
   | t = <NUM_FLOTANTE> { return new Arbol("Literal_FLOAT: " + t.image); }
   | t = <STR> { return new Arbol("Literal_CADENA_DE_CARACTERES: " + t.image); }
+  | LOOKAHEAD(<ID> <PAREN_ABRE>)
+  	nodo = llamadaFuncion()
+  	{
+  	  return nodo;
+  	} 
   | t = <ID>
   {
     Simbolo simboloUsado = tabla.buscar(t.image);
     if (simboloUsado == null)
     {
       // Error por ambitos !S
-      System.err.println("Error Semantico ??? [:v] Línea: " + t.beginLine + " La variable o función '" 
-        + t.image + "' no ha sido declarada.");
+      /*System.err.println("Error Semantico ??? [:v] Línea: " + t.beginLine + " La variable o función '" 
+        + t.image + "' no ha sido declarada.");*/
+
+		registrarError("Error Semantico: Línea " + t.beginLine + ", columna " + t.beginColumn + " La variable o funcion '" + t.image + "' no ha sido declarada.");
     }
     /**/
 	Simbolo simbolo = tabla.buscar(t.image);
 	if (simbolo != null && simbolo.tipo.equals("funcion"))
 	{
-   	  System.err.println(Colores.ROJO + "Error: '" + t.image + "' es una función, debe llamarse con ()");
+   	  //System.err.println(Colores.ROJO + "Error: '" + t.image + "' es una función, debe llamarse con ()");
+   	  //registrarError("Error: Línea " + t.beginLine + " La funcion'" + t.image + "' no ha sido declarada.");
+   	  registrarError("Error Semantico: Línea " + t.beginLine + ", columna " + t.beginColumn + " La función '" + t.image + "' no puede usarse como variable (falta llamar con '()').");
 	}
 
     return new Arbol("Literal_IDENTIFICADOR: " + t.image);
@@ -598,8 +713,10 @@ Arbol entrada() :
   	Simbolo simboloEntrada = tabla.buscar(t_id.image);
     if (simboloEntrada == null)
     {
-      System.err.println("Error ??? Línea: " + t_id.beginLine + ": La variable '" + t_id.image
-        + "' para entrada no ha sido declarada.");
+     /* System.err.println("Error ??? Línea: " + t_id.beginLine + ": La variable '" + t_id.image
+        + "' para entrada no ha sido declarada.");*/
+
+      registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " La variable '" + t_id.image + "' para acceder no ha sido declarada");
     }
   }
 
@@ -672,13 +789,18 @@ Arbol accesoVector() :
 
     if (simboloVector == null)
     {
-      System.err.println("Error ??? Línea: " + t_id.beginLine + ": El vector '" + t_id.image
-        + "' no ha sido declarado.");
+      /*System.err.println("Error ??? Línea: " + t_id.beginLine + ": El vector '" + t_id.image
+        + "' no ha sido declarado.");*/
+
+	  registrarError("Error Semantico: Línea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " El vector '" + t_id.image + "' no ha sido declarado.");
+	  
     }
     else if (!"vector".equals(simboloVector.tipo))
     {
-      System.err.println("Error ??? Línea: " + t_id.beginLine + ": El identificador '" + t_id.image
-        + "' no es un vector.");
+      /*System.err.println("Error ??? Línea: " + t_id.beginLine + ": El identificador '" + t_id.image
+        + "' no es un vector.");*/
+
+      registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image + "' no es un vector.");
     }
   }
   	
@@ -694,13 +816,15 @@ Arbol accesoVector() :
       Simbolo simboloIndice = tabla.buscar(t_id.image);
       if (simboloIndice == null)
       {
-        System.err.println("Error ??? Línea: " + t_id.beginLine + ": La variable para el índice '"
-          + t_id.image + "' no ha sido declarada.");
+        /*System.err.println("Error ??? Línea: " + t_id.beginLine + ": La variable para el índice '"
+          + t_id.image + "' no ha sido declarada.");*/
+        registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " La variable para el indice '" + t_id.image + "' no ha sido declarada.");
       }
       else if (!"int".equals(simboloIndice.tipo))
       {
-        System.err.println("Error ??? Línea: " + t_id.beginLine
-          + ": El índice del vector debe ser de tipo entero, pero se encontró '" + simboloIndice.tipo + "'.");
+       /*System.err.println("Error ??? Línea: " + t_id.beginLine
+          + ": El índice del vector debe ser de tipo entero, pero se encontró '" + simboloIndice.tipo + "'.");*/
+        registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El indice debe ser un entero, pero se encontró '" + simboloIndice.tipo + "'");
       }
   	 }
   )
@@ -865,7 +989,7 @@ Arbol condicionalIf() :
     // else
     t_else = <ELSE> { nodoIf.agregarHijo(new Arbol("Token: " + t_else.image)); }
     { nodoIf.agregarHijo(new Arbol("Bloque_ELSE")); }
-        
+    
     ( 
       // ELSE { bloqueDeCodigo() }
       bloqueElse = bloqueDeCodigo() { nodoIf.agregarHijo(bloqueElse); }

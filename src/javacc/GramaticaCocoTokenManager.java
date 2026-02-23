@@ -594,7 +594,7 @@ public static final String[] jjstrLiteralImages = {
 "\144\145\146\141\165\154\164", "\142\162\145\141\153", "\146\157\162", "\167\150\151\154\145", "\50", "\51", 
 "\173", "\175", "\133", "\135", "\137\151\156\151\143\151\157", 
 "\146\151\156\141\154\137", "\143\157\143\157", "\146\156", "\160\162\151\156\164\41", 
-"\163\143\141\156\41", "\162\145\164\165\162\156", null, null, null, null, };
+"\163\143\141\156\41", "\162\145\164\165\162\156", null, null, null, null, null, };
 protected Token jjFillToken()
 {
    final Token t;
@@ -649,6 +649,9 @@ public Token getNextToken()
       matchedToken = jjFillToken();
       return matchedToken;
    }
+   image = jjimage;
+   image.setLength(0);
+   jjimageLen = 0;
 
    try { input_stream.backup(0);
       while (curChar <= 32 && (0x100002600L & (1L << curChar)) != 0L)
@@ -658,6 +661,10 @@ public Token getNextToken()
    jjmatchedKind = 0x7fffffff;
    jjmatchedPos = 0;
    curPos = jjMoveStringLiteralDfa0_0();
+   if (jjmatchedPos == 0 && jjmatchedKind > 57)
+   {
+      jjmatchedKind = 57;
+   }
    if (jjmatchedKind != 0x7fffffff)
    {
       if (jjmatchedPos + 1 < curPos)
@@ -669,6 +676,7 @@ public Token getNextToken()
       }
       else
       {
+         SkipLexicalActions(null);
          continue EOFLoop;
       }
    }
@@ -699,6 +707,12 @@ void SkipLexicalActions(Token matchedToken)
 {
    switch(jjmatchedKind)
    {
+      case 57 :
+         image.append(input_stream.GetSuffix(jjimageLen + (lengthOfMatch = jjmatchedPos + 1)));
+    int columna = input_stream.getColumn() - 1;
+    int linea = input_stream.getLine();
+    GramaticaCoco.registrarError("Error L\u00e9xico: Car\u00e1cter inv\u00e1lido '" + image.toString() + "' en l\u00ednea " + linea +  ", columna: " + columna);
+         break;
       default :
          break;
    }
@@ -811,13 +825,13 @@ public static final String[] lexStateNames = {
 public static final int[] jjnewLexState = {
    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
-   -1, -1, -1, -1, -1, -1, -1, 
+   -1, -1, -1, -1, -1, -1, -1, -1, 
 };
 static final long[] jjtoToken = {
    0x1ffffffffffffc1L, 
 };
 static final long[] jjtoSkip = {
-   0x3eL, 
+   0x20000000000003eL, 
 };
 static final long[] jjtoSpecial = {
    0x0L, 
