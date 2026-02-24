@@ -111,11 +111,15 @@ public interface GramaticaCocoConstants {
   /** RegularExpression Id. */
   int NUM_ENTERO = 54;
   /** RegularExpression Id. */
-  int ID = 55;
+  int TRUE = 55;
   /** RegularExpression Id. */
-  int STR = 56;
+  int FALSE = 56;
   /** RegularExpression Id. */
-  int UNKNOWN = 57;
+  int ID = 57;
+  /** RegularExpression Id. */
+  int STR = 58;
+  /** RegularExpression Id. */
+  int UNKNOWN = 59;
 
   /** Lexical state. */
   int DEFAULT = 0;
@@ -177,6 +181,8 @@ public interface GramaticaCocoConstants {
     "\"return\"",
     "<NUM_FLOTANTE>",
     "<NUM_ENTERO>",
+    "\"true\"",
+    "\"false\"",
     "<ID>",
     "<STR>",
     "<UNKNOWN>",

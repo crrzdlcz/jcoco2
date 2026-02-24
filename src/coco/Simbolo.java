@@ -7,6 +7,7 @@ public class Simbolo {
 	public int lineaDeclaracion;
 	public String tipoRetorno;
 	public java.util.List<String> parametros;
+	public String tipoElemento;
 	
 	// Método constructor:
 	public Simbolo(String nombre, String tipo, String ambito, int linea) 
@@ -15,8 +16,8 @@ public class Simbolo {
 		this.tipo = tipo;
 		this.ambito = ambito;
 		this.lineaDeclaracion = linea;
-		
 		this.parametros = new java.util.ArrayList<>();
+		this.tipoElemento = null;
 	}
 	
 	/*@Override

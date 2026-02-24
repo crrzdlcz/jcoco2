@@ -16,6 +16,7 @@ public class GramaticaCoco
 {
   private Tabla tabla = new Tabla();
   private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
+  private int profundidadSwitch = 0; // Para accion semantica, break solo en switch. 
 
   public static void registrarError(String msj)
   {
@@ -80,6 +81,7 @@ public class GramaticaCoco
     if (nombre.startsWith("Literal_INT")) return "int";
     if (nombre.startsWith("Literal_FLOAT")) return "float";
     if (nombre.startsWith("Literal_CADENA_DE_CARACTERES")) return "string";
+    if (nombre.startsWith("Literal_BOOL")) return "bool"; 
     // Si tienes booleanos literales (true/false), agrégalos aquí
     // if (nombre.startsWith("Literal_BOOL")) return "bool";
 
@@ -249,6 +251,10 @@ public class GramaticaCoco
 
   // Variable para checar el tipo del retorno de una funcion.
   private String tipoRetornoFuncionActual = null;
+
+  // Lista que guarda los tipos de los parametros durante el parseo.
+  private java.util.List<String> tiposParametrosActuales = new java.util.ArrayList<>();
+  
   
 }
 
@@ -333,6 +339,8 @@ TOKEN :
   /*-- CARACTERES --*/
 | < NUM_FLOTANTE : (["0" - "9"])+ "." (["0" - "9"])+ >
 | < NUM_ENTERO : (["0" - "9"])+ >
+| < TRUE : "true" >
+| < FALSE : "false" >
 | < ID : (["a" - "z", "A" - "Z", "_"]) (["a" - "z", "A" - "Z", "0" - "9", "_"])* >
 | < STR : "\"" (~["\n", "\r", "\""])* "\"" >
 }
@@ -398,6 +406,7 @@ Arbol funcion() :
   String tipoRetorno, nombreFuncion;
   Arbol parametros, bloque;
   Token t_decl, t_id, t_flecha, t_pa, t_pc;
+  Simbolo simboloFuncion = null; // Para la comprobacion de tipos en los pareametros de la funcion.
 }
 {
   t_decl = <FUNC> { nodoFuncion.agregarHijo(new Arbol ("Token: " + t_decl.image)); }
@@ -418,10 +427,11 @@ Arbol funcion() :
 
     tipoRetornoFuncionActual = tipoRetorno;  // Para validar el tipo de retorno.
 	
-	Simbolo simboloFuncion = new Simbolo(nombreFuncion, "funcion", tabla.getAmbitoActual(), t_id.beginLine);
+	simboloFuncion = new Simbolo(nombreFuncion, "funcion", tabla.getAmbitoActual(), t_id.beginLine);
     simboloFuncion.tipoRetorno = tipoRetorno;
     tabla.insertar(simboloFuncion);
-    
+
+    tiposParametrosActuales.clear(); // Se limpia la lista para evitar traer "basura" de otras funciones.    
   }
 
   t_pa = <PAREN_ABRE> { nodoFuncion.agregarHijo(new Arbol ("Token " + t_pa.image)); }
@@ -429,6 +439,11 @@ Arbol funcion() :
   { tabla.entrarAmbito(nombreFuncion); }
 
   parametros = listaParametros() { nodoFuncion.agregarHijo(parametros); }
+
+  // Para la validacion de argumentos en las funciones.
+  {
+    simboloFuncion.parametros.addAll(tiposParametrosActuales);
+  }
   	
   t_pc = <PAREN_CIERRA> { nodoFuncion.agregarHijo(new Arbol ("Token " + t_pc.image)); }
   	
@@ -469,7 +484,10 @@ Arbol parametro() :
 }
 {
   tipoDato = tiposDeDatos()
-  { nodoParametro.agregarHijo(new Arbol("Tipo: " + tipoDato)); }
+  {
+    nodoParametro.agregarHijo(new Arbol("Tipo: " + tipoDato));
+    tiposParametrosActuales.add(tipoDato); // para la Validacion de parametros en funciones
+  }
 
   t_dos_puntos = <DOSPUNTOS>
   { nodoParametro.agregarHijo(new Arbol ("Token: " + t_dos_puntos.image)); }
@@ -560,7 +578,34 @@ Arbol sentenciasConIdentificador() :
   (
     accVector = accesoVector() { nodo.agregarHijo(accVector); }
 	t_asig = <OP_ASIGNACION> { nodo.agregarHijo(new Arbol("Token: " + t_asig.image)); }
-	exp = expresion() { nodo.agregarHijo(exp); }
+	exp = expresion()
+	{
+	  // Comprobaciond de tipos      
+	  String nombreVector = accVector.getHijos().get(0).getNombreProduccion().split(": ")[1].trim();
+	  Simbolo simboloVector = tabla.buscar(nombreVector);
+
+	   if (simboloVector != null)
+	   {
+         String tipoElemento = simboloVector.tipoElemento;
+         String tipoExpresion = obtenerTipoDeArbol(exp); 
+        
+         if (!tipoExpresion.equals("error"))
+         {
+          
+            boolean esCompatible = tipoElemento.equals(tipoExpresion) || 
+                                 (tipoElemento.equals("float") && tipoExpresion.equals("int"));
+          
+           if (!esCompatible)
+           {
+            registrarError("Error Semántico: Línea " + t_asig.beginLine + ". No se puede asignar tipo '" + tipoExpresion + 
+                           "' al vector '" + nombreVector + "' que es de tipo '" + tipoElemento + "'.");
+           }
+         }
+       }
+       // -- Fin comprobaciond de tipos  
+	  
+	  nodo.agregarHijo(exp);
+	}
 	t_pc = <PUNTOYCOMA> { nodo.agregarHijo(new Arbol("Token: " + t_pc.image)); }
 
 	{ return nodo; }
@@ -633,9 +678,10 @@ Arbol sentenciaRetorno() :
 
       boolean esCompatible = tipoExp.equals(tipoRetornoFuncionActual) || (tipoRetornoFuncionActual.equals("float") && tipoExp.equals("int"));
 
-      if (esCompatible && !tipoExp.equals("error"))
+      if (!esCompatible && !tipoExp.equals("error"))
       {
-        registrarError("Error Semantico; El tipo de retorno '" + tipoExp + "' no coincide con el tipo decalrado  de la funcion '" + tipoRetornoFuncionActual + "'");
+        registrarError("Error Semantico: Linea " + t_return.beginLine + ", columna " + t_return.beginColumn + ". El tipo de retorno '" + tipoExp +
+        "' no coincide con el tipo decalrado  de la funcion '" + tipoRetornoFuncionActual + "'");
       }
       
     }
@@ -650,7 +696,9 @@ Arbol llamadaFuncion() :
 {
   Arbol nodoLlamadaFuncion = new Arbol("LlamadaFuncion");
   Arbol exp;
-  Token t_id, t_pa, t_pc, t_coma; 
+  Token t_id, t_pa, t_pc, t_coma;
+  java.util.List<String> tiposArgumentos = new java.util.ArrayList<>();
+  
 }
 {
   t_id = <ID>
@@ -665,23 +713,70 @@ Arbol llamadaFuncion() :
     else if (!simbolo.tipo.equals("funcion"))
     {
       registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image
-      + "' no es una función (es de tipo '" + simbolo.tipo + "').");      
+      + "' no es una función (es de tipo '" + simbolo.tipo + "').");
+      simbolo = null; // Pa no validar cosas que no sean de una funcion.
     }
     
   }
   t_pa = <PAREN_ABRE> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pa.image)); }
 
   (
-    exp = expresion() { nodoLlamadaFuncion.agregarHijo(exp); }
+    exp = expresion()
+    {
+      nodoLlamadaFuncion.agregarHijo(exp);
+      // Pa validacion de argumentos en una funcion. - > se guarda el tipo de argumento actual...
+      tiposArgumentos.add(obtenerTipoDeArbol(exp)); 
+    }
   	(
   	  t_coma = <COMA> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_coma.image)); }
   	  	  	
-  	  exp = expresion()	{ nodoLlamadaFuncion.agregarHijo(exp); }
+  	  exp = expresion()
+  	  {
+  	    nodoLlamadaFuncion.agregarHijo(exp);
+  	    // Obtener el tipo del argumento desde el arbol
+  	    tiposArgumentos.add(obtenerTipoDeArbol(exp));
+  	  }
   	)*
   )?
 
   t_pc = <PAREN_CIERRA> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pc.image)); }
 
+
+  /*-- VALIDACION DE LOS ARGUMENTOS --*/
+  {
+    if (simbolo != null)
+    {
+      int numEsperados = simbolo.parametros.size();
+      int numActuales = tiposArgumentos.size();
+
+      // Validar cantidad de argumentos
+      if (numActuales != numEsperados)
+      {
+        registrarError("Error Semantico: Línea " + t_id.beginLine + ". La función '" + t_id.image +
+        "' espera " + numEsperados + " argumentos, pero se encontraron " + numActuales + ".");
+      } else
+      {
+            // Validamos los  tipos uno por uno.
+        for (int i = 0; i < numActuales; i++)
+        {
+          String tipoEsp = simbolo.parametros.get(i);
+          String tipoAct = tiposArgumentos.get(i);
+                
+          // Deben ser del  mismo tipo // tmb int->float
+          boolean compatible = tipoEsp.equals(tipoAct) || (tipoEsp.equals("float") && tipoAct.equals("int"));
+
+          if (!compatible && !tipoAct.equals("error"))
+          {
+            registrarError("Error Semantico: Línea " + t_id.beginLine + ". En la llamada a '" +
+            t_id.image + "', el argumento #" + (i+1) + " es de tipo '" + tipoAct + "' pero se esperaba '" + tipoEsp + "'.");
+          }
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------- //
+  
   { return nodoLlamadaFuncion; }
 }
 
@@ -813,6 +908,8 @@ Arbol factor() :
     t = <NUM_ENTERO> { return new Arbol("Literal_INT: " + t.image); }
   | t = <NUM_FLOTANTE> { return new Arbol("Literal_FLOAT: " + t.image); }
   | t = <STR> { return new Arbol("Literal_CADENA_DE_CARACTERES: " + t.image); }
+  | t = <TRUE> { return new Arbol("Literal_BOOL: true"); }
+  | t = <FALSE> { return new Arbol("Literal_BOOL: false"); }
   | LOOKAHEAD(<ID> <PAREN_ABRE>)
   	nodo = llamadaFuncion()
   	{
@@ -864,16 +961,35 @@ Arbol factor() :
      Arbol nodoUnario = new Arbol("Unario_INC");
      nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
      nodoUnario.agregarHijo(nodo); 
+
+     // Validacion para no 1++ o funcion()++
+     String nombreNodo = nodo.getNombreProduccion();
+     // Solo variables o posi en un vector
+     if (!nombreNodo.startsWith("Literal_IDENTIFICADOR") && !nombreNodo.equals("AccesoAlVector"))
+     {
+         registrarError("Error Semántico: Línea " + t.beginLine + ". El operador '++' requiere una variable, no un literal o expresión.");
+     }
+
      return nodoUnario;
     }
    
   | t = <OP_DECREMENTO> nodo = factor()
-  {
-    Arbol nodoUnario = new Arbol("Unario_DEC");
-    nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
-    nodoUnario.agregarHijo(nodo);
-    return nodoUnario;
-  }
+   {
+     Arbol nodoUnario = new Arbol("Unario_DEC");
+     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
+     nodoUnario.agregarHijo(nodo);
+
+	 // Validacion para no 1-- o funcion()--
+	 String nombreNodo = nodo.getNombreProduccion();
+	 // Solo variables o posi en un vector
+     if (!nombreNodo.startsWith("Literal_IDENTIFICADOR") && !nombreNodo.equals("AccesoAlVector"))
+     {
+         registrarError("Error Semántico: Línea " + t.beginLine +
+         ", columna " + t.beginColumn + ". El operador '--' requiere una variable, no un literal o expresión.");
+     }
+     
+     return nodoUnario;
+   }
     
   | t = <OP_RESTA> nodo = factor()
   {
@@ -911,7 +1027,25 @@ Arbol declaracionDeVariable() :
   [
     t_asig = <OP_ASIGNACION> { nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_asig.image)); }
     // Sub-produccion
-    ( exp = expresion()	{ nodoDeclaracion.agregarHijo(exp); } )
+    (
+      exp = expresion()
+      {
+        nodoDeclaracion.agregarHijo(exp);
+        // Checar que coincida el tipo de dato con lo que se va asignar.
+        String tipoExpr = obtenerTipoDeArbol(exp);
+        
+        if (!tipoExpr.equals("error"))
+        {
+          boolean esCompatible = tipoDato.equals(tipoExpr) || (tipoDato.equals("float") && tipoExpr.equals("int"));
+
+          if (!esCompatible)
+          {
+            registrarError("Error Semántico: Linea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+            " No se puede asignar tipo '" + tipoExpr + "' a variable de tipo '" + tipoDato + "'.");
+          }
+        }
+      }
+    )
   ] // - > Solo si hay una asignacion.
 
   t_pc = <PUNTOYCOMA>
@@ -940,25 +1074,43 @@ Arbol salida() :
 Arbol entrada() :
 {
   Arbol nodoEntrada = new Arbol("SentenciaDeEntrada");
+  Arbol accVector; // Para llenar una posicion en el vector
   Token t_entrada, t_pa, t_id, t_pc, t_pyc;
 }
 {
   t_entrada = <ENTRADA> { nodoEntrada.agregarHijo(new Arbol("Token: " + t_entrada.image)); }
 
-  t_pa = <PAREN_ABRE> { nodoEntrada.agregarHijo(new Arbol("Token: " + t_pa.image)); }
+  t_pa = <PAREN_ABRE>
+  { nodoEntrada.agregarHijo(new Arbol("Token: " + t_pa.image)); }
 
-  t_id = <ID>
-  {
-    nodoEntrada.agregarHijo(new Arbol("Token: " + t_id.image));
-  	Simbolo simboloEntrada = tabla.buscar(t_id.image);
-    if (simboloEntrada == null)
+  (    LOOKAHEAD( <ID> <CORCHETE_ABRE> )
+      accVector = accesoVector()
+      {
+        nodoEntrada.agregarHijo(accVector);
+        //  La función accesoVector() ya se encarga de verificar 
+        // si el vector existe y si el índice es válido.
+        // **********
+      }
+
+    |
+
+    t_id = <ID>
     {
-     /* System.err.println("Error ??? Línea: " + t_id.beginLine + ": La variable '" + t_id.image
-        + "' para entrada no ha sido declarada.");*/
+      nodoEntrada.agregarHijo(new Arbol("Token: " + t_id.image));
+  	  Simbolo simboloEntrada = tabla.buscar(t_id.image);
 
-      registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " La variable '" + t_id.image + "' para acceder no ha sido declarada");
+      if (simboloEntrada == null)
+      {
+        registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+        " La variable '" + t_id.image + "' no ha sido declarada");
+      }
+      else if ("funcion".equals(simboloEntrada.tipo))
+      {
+        registrarError("Error Semantico: Línea " + t_id.beginLine + 
+          " No se puede usar 'scan!' sobre una función.");
+      }
     }
-  }
+  )
 
   t_pc = <PAREN_CIERRA> { nodoEntrada.agregarHijo(new Arbol("Token: " + t_pc.image)); }
 
@@ -982,6 +1134,8 @@ Arbol declaracionVector() :
    	{
    	  	nodoDeclaracionVector.agregarHijo(new Arbol("ID_Vector: " + t_id.image));
 		Simbolo nuevoVector = new Simbolo(t_id.image, "vector", tabla.getAmbitoActual(), t_id.beginLine);
+		// com. tipos enteros
+		nuevoVector.tipoElemento = tipoDato; 
         tabla.insertar(nuevoVector);
    	}
 	
@@ -1004,7 +1158,7 @@ Arbol dimensionVector() :
 	{ nodoDimensionVector.agregarHijo(new Arbol("Token: " + t_ca.image)); }
 	
   	(
-    	  t_int = <ENTERO>
+    	  t_int = <NUM_ENTERO>
     	  { nodoDimensionVector.agregarHijo(new Arbol("Token: " + t_int.image)); }
     	  
     	| t_id = <ID>
@@ -1048,7 +1202,7 @@ Arbol accesoVector() :
 
   // Entero o variable en el acceso a la posision de un vector.
   (
-      t_int = <ENTERO> { nodoAccesoVec.agregarHijo(new Arbol("Literal_INT_Indice: " + t_int.image)); }
+      t_int = <NUM_ENTERO> { nodoAccesoVec.agregarHijo(new Arbol("Literal_INT_Indice: " + t_int.image)); }
   	| t_id = <ID>
   	{
   	  nodoAccesoVec.agregarHijo(new Arbol("ID_Indice: " + t_id.image));
@@ -1064,7 +1218,7 @@ Arbol accesoVector() :
       {
        /*System.err.println("Error ??? Línea: " + t_id.beginLine
           + ": El índice del vector debe ser de tipo entero, pero se encontró '" + simboloIndice.tipo + "'.");*/
-        registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El indice debe ser un entero, pero se encontró '" + simboloIndice.tipo + "'");
+        registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El indice debe ser un entero, pero se encontró un '" + simboloIndice.tipo + "'");
       }
   	 }
   )
@@ -1195,7 +1349,7 @@ Arbol bucleWhile() :
   // Comprobacion de tipo bool en la expresion que va entre parentesis.
   {
     String tipoCond = obtenerTipoDeArbol(condicion);
-    if (tipoCond.equals("bool") && !tipoCond.equals("error"))
+    if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
       registrarError("Error Semantico: La condicion del bucle while debe ser del tipo 'bool', se encontró '" + tipoCond + "´.");
     }
@@ -1230,9 +1384,10 @@ Arbol condicionalIf() :
   // Comprobacion de tipo bool en la expresion que va entre parentesis.
   {
     String tipoCond = obtenerTipoDeArbol(condicion);
-    if (tipoCond.equals("bool") && !tipoCond.equals("error"))
+    if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
-      registrarError("Error Semantico: La condicion del if debe ser del tipo 'bool', se encontró '" + tipoCond + "´.");
+      registrarError("Error Semantico: Linea " + t_pa.beginLine + ", columna" + t_pa.beginLine +
+      "La condicion del if debe ser del tipo 'bool', se encontró '" + tipoCond + "'.");
     }
   }
     
@@ -1264,35 +1419,49 @@ Arbol condicionalSwitch() :
 {
   Arbol nodoSwitch = new Arbol("Condicional_SWITCH");
   Arbol expresionControl, caso, defecto;
-  Token t_switch, t_pa, t_pc, t_lla, t_llc; 
+  Token t_switch, t_pa, t_pc, t_lla, t_llc;
+  String tipoControl;
 }
-{
+{  
   t_switch = <SWITCH> { nodoSwitch.agregarHijo(new Arbol("Token: " + t_switch.image)); }
     
   t_pa = <PAREN_ABRE> { nodoSwitch.agregarHijo(new Arbol("Token: " + t_pa.image)); }
     
-  expresionControl = expresion() { nodoSwitch.agregarHijo(expresionControl); }
+  expresionControl = expresion()
+  {
+    nodoSwitch.agregarHijo(expresionControl);
+    tipoControl = obtenerTipoDeArbol(expresionControl); // Obtenemos el tipo
+  }
     
   t_pc = <PAREN_CIERRA> { nodoSwitch.agregarHijo(new Arbol("Token: " + t_pc.image)); }
     
-  t_lla = <LLAVE_ABRE> { nodoSwitch.agregarHijo(new Arbol("Token: " + t_lla.image)); }
+  t_lla = <LLAVE_ABRE>
+  {
+    nodoSwitch.agregarHijo(new Arbol("Token: " + t_lla.image));
+    profundidadSwitch++; // Entrada dde 1 en un switch
+  }
     
     //  Casos (cases) (Repetitivo: ( caseSwitch() )*)
-  ( 
-    caso = caseSwitch() { nodoSwitch.agregarHijo(caso); }
-  )* // Default (Opcional: ( defaultSwitch() )?)
+  ( caso = caseSwitch(tipoControl) { nodoSwitch.agregarHijo(caso); } )* 
+
+  // Default (Opcional: ( defaultSwitch() )?)
   ( defecto = defaultSwitch() { nodoSwitch.agregarHijo(defecto); } )?
     
-  t_llc = <LLAVE_CIERRA> { nodoSwitch.agregarHijo(new Arbol("Token: " + t_llc.image)); }
+  t_llc = <LLAVE_CIERRA>
+  {
+    nodoSwitch.agregarHijo(new Arbol("Token: " + t_llc.image));
+    profundidadSwitch--; // <--- escapamos del switch :o.
+  }
     
   { return nodoSwitch; }
 }
 
-Arbol caseSwitch() :
+Arbol caseSwitch(String tipoControl) :
 {
   Arbol nodoCase = new Arbol("Case_SWITCH");
   Arbol sentencia, breakSentencia;
-  Token t_case, t_valor, t_dospuntos; 
+  Token t_case, t_valor, t_dospuntos;
+  String tipoValorCase = "error";
 }
 {
   // CASE_CONDICIONAL_SWITCH ("case")
@@ -1300,10 +1469,25 @@ Arbol caseSwitch() :
     
   // Valor a reconocer??? (Entero o Cadena)
   ( 
-    t_valor = <ENTERO> { nodoCase.agregarHijo(new Arbol("Valor_Case_INT: " + t_valor.image)); }
+    t_valor = <NUM_ENTERO>
+    {
+      nodoCase.agregarHijo(new Arbol("Valor_Case_INT: " + t_valor.image));
+      tipoValorCase = "int"; // Validar tipo case:
+    }
 
-    | t_valor = <STR> { nodoCase.agregarHijo(new Arbol("Valor_Case_STRING: " + t_valor.image)); }
+    | t_valor = <STR>
+    {
+      nodoCase.agregarHijo(new Arbol("Valor_Case_STRING: " + t_valor.image));
+      tipoValorCase = "string"; // Validar tipo case:
+    }
   )
+
+  {
+    if (!tipoControl.equals("error") && !tipoValorCase.equals(tipoControl)) {
+      registrarError("Error Semántico: Línea " + t_case.beginLine + ", columna " + t_case.beginColumn + ". El tipo del case ('" + 
+      tipoValorCase + "') no coincide con el tipo de la expresión del switch ('" + tipoControl + "').");
+  }
+  }
     
   t_dospuntos = <DOSPUNTOS> { nodoCase.agregarHijo(new Arbol("Token: " + t_dospuntos.image)); }
 
@@ -1322,6 +1506,16 @@ Arbol sentenciaBreak() :
 }
 {
   t_break = <BREAK> { nodoStmtBreak.agregarHijo(new Arbol("Token: " + t_break.image)); }
+
+  // Accion sema para usar el breack solo en switchs,
+  {
+    if (profundidadSwitch == 0)
+    {
+      registrarError("Error Semántico: Línea " + t_break.beginLine + 
+        ". La sentencia 'break' solo es válida dentro de un 'switch'.");
+    }
+  }
+  
   t_pc = <PUNTOYCOMA> { nodoStmtBreak.agregarHijo(new Arbol("Token: " + t_pc.image)); }
 
   { return nodoStmtBreak; }

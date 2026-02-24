@@ -1,39 +1,28 @@
-fn suma -> int () // -> Declaración de una funcion
-{ // -> *** Bloque de codigo ***
-
-    coco int: a = 10; // -> Declaración de variables.
-    coco int: b = 20;
-    coco int: resultado;
-    resultado = 0; // -> Asignación de valor a una variable.
-
-    print!("Ingrese el primer numero: "); // -> Impresion de mensajes.
-    scan!(a);
-    print!("Ingrese el segundo numero: ");
-    scan!(b); // -> Ingreso de datos desde el teclado.
-
-    resultado = a + b; //->  Operación aritmetica.
-
-    // Regreso de un valor (variable resultado).
-    return resultado;
+fn suma -> int (int: a, int: b) {
+    return a + b;
 }
 
-_inicio // -> Inicio del codigo ejecutable.
+_inicio
+    coco int: resultado;
+    resultado = suma(5, 10);
 
-    resta();
-    suma(); // -> Llamada a la funcion suma.
+    coco string: hola = "Hola"; // Cambiar por 5 XDXDXDXXDXD
 
-    coco int: x;
-    b = suma();
-
-if ( x++ )
-    if ( b("") <= 30) // -> Condicional if
-    {
-        print!("La suma es mayor o igual que 30!");
-    }
-    else // -> Condicional else
-    {
-        print!("La suma es menor que 30!");
+    if (resultado == 20) {
+       print!("La suma es mayor a 20");
+       break;
+    } else {
+        print!("El resultado de la suma es menor a 20" );
     }
 
 
-final_ // -> Fin del código ejecutable.
+    int miVector[5];
+
+    miVector[0] = 5;
+    miVector[1] = 20;
+
+    coco int : i;
+    i = 2;
+    miVector[i] = 30;
+
+final_
