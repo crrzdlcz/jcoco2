@@ -6,15 +6,13 @@ _inicio
     coco int: resultado;
     resultado = suma(5, 10);
 
-    coco string: hola = "Hola"; // Cambiar por 5 XDXDXDXXDXD
+    coco string: hola = "Hola"; // Cambiar por 5 XDXDXDXDXDXD
 
-    if (resultado == 20) {
-       print!("La suma es mayor a 20");
-       break;
+    if (resultado == 5 ) {
+       print!("La suma es igual a 20");
     } else {
-        print!("El resultado de la suma es menor a 20" );
+        print!("El resultado de la suma no es 20" );
     }
-
 
     int miVector[5];
 

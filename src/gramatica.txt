@@ -82,7 +82,6 @@ public class GramaticaCoco
     if (nombre.startsWith("Literal_FLOAT")) return "float";
     if (nombre.startsWith("Literal_CADENA_DE_CARACTERES")) return "string";
     if (nombre.startsWith("Literal_BOOL")) return "bool"; 
-    // Si tienes booleanos literales (true/false), agrégalos aquí
     // if (nombre.startsWith("Literal_BOOL")) return "bool";
 
     // 2. Caso Base: Identificadores (Variables)
@@ -157,12 +156,6 @@ public class GramaticaCoco
 		}
 
 		return tipoHijo;
-        
-        /*if (nodo.getHijos().size() > 1) {
-            return obtenerTipoDeArbol(nodo.getHijos().get(1));
-        }
-        return "error";
-        */
     }
 
 	// Caso 5.5
@@ -212,7 +205,7 @@ public class GramaticaCoco
                 return "float";
             }
             
-            // String + X = String (concatenación, si tu lenguaje lo permite)
+            // String + X = String
             if (tipoIzq.equals("string") || tipoDer.equals("string")) return "string";
 
             // Si no coinciden, es error de tipos (ej: bool + int)
@@ -220,7 +213,7 @@ public class GramaticaCoco
             return "error";
         }
 
-        // B) Operaciones Relacionales (<, >, ==, etc.)
+        // B) Operaciones Relacionales (<, >, ==)
         if (nombre.contains("Relacional")) {
             // Comparar números
             if ((tipoIzq.equals("int") || tipoIzq.equals("float")) && 
@@ -417,7 +410,7 @@ Arbol funcion() :
     nombreFuncion = t_id.image; 
   }
   	
-  t_flecha = <FLECHA> { nodoFuncion.agregarHijo(new Arbol ("Token " + t_flecha.image)); }
+  t_flecha = <FLECHA> { nodoFuncion.agregarHijo(new Arbol ("Token: " + t_flecha.image)); } 
   	
   tipoRetorno = tiposDeDatos() { nodoFuncion.agregarHijo(new Arbol("TipoRetorno: " + tipoRetorno)); }
 
@@ -445,7 +438,7 @@ Arbol funcion() :
     simboloFuncion.parametros.addAll(tiposParametrosActuales);
   }
   	
-  t_pc = <PAREN_CIERRA> { nodoFuncion.agregarHijo(new Arbol ("Token " + t_pc.image)); }
+  t_pc = <PAREN_CIERRA> { nodoFuncion.agregarHijo(new Arbol ("Token: " + t_pc.image)); }
   	
   bloque = bloqueDeCodigo() { nodoFuncion.agregarHijo(bloque); }
 
@@ -557,6 +550,7 @@ Arbol sentencia() :
 | s = condicionalSwitch() { return s; }
 | s = sentenciaRetorno() { return s; }
 | s = sentenciasConIdentificador() { return s; }
+| s = sentenciaBreak() { return s; } 
 }
 
 Arbol sentenciasConIdentificador() :
@@ -681,7 +675,7 @@ Arbol sentenciaRetorno() :
       if (!esCompatible && !tipoExp.equals("error"))
       {
         registrarError("Error Semantico: Linea " + t_return.beginLine + ", columna " + t_return.beginColumn + ". El tipo de retorno '" + tipoExp +
-        "' no coincide con el tipo decalrado  de la funcion '" + tipoRetornoFuncionActual + "'");
+        "' no coincide con el tipo declarado  de la funcion: '" + tipoRetornoFuncionActual + "'");
       }
       
     }

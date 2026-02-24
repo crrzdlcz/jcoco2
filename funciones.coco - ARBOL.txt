@@ -2,7 +2,7 @@
 |  -> DeclaracionDeFuncion
 |  |  -> Token: fn
 |  |  -> Token: suma
-|  |  -> Token ->
+|  |  -> Token: ->
 |  |  -> TipoRetorno: int
 |  |  -> Token (
 |  |  -> ListaDeParametros
@@ -15,7 +15,7 @@
 |  |  |  |  -> Tipo: int
 |  |  |  |  -> Token: :
 |  |  |  |  -> Token: b
-|  |  -> Token )
+|  |  -> Token: )
 |  |  -> BloqueDeCodigo
 |  |  |  -> Token: {
 |  |  |  -> SentenciaDeRetorno
@@ -58,18 +58,15 @@
 |  |  -> Operador_Relacional==
 |  |  |  -> Literal_IDENTIFICADOR: resultado
 |  |  |  -> Token: ==
-|  |  |  -> Literal_INT: 20
+|  |  |  -> Literal_INT: 5
 |  |  -> Token: )
 |  |  -> BloqueDeCodigo
 |  |  |  -> Token: {
 |  |  |  -> SentenciaDeSalida
 |  |  |  |  -> Token: print!
 |  |  |  |  -> Token: (
-|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "La suma es mayor a 20"
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "La suma es igual a 20"
 |  |  |  |  -> Token: )
-|  |  |  |  -> Token: ;
-|  |  |  -> SentenciaBreak
-|  |  |  |  -> Token: break
 |  |  |  |  -> Token: ;
 |  |  |  -> Token: }
 |  |  -> Token: else
@@ -79,7 +76,7 @@
 |  |  |  -> SentenciaDeSalida
 |  |  |  |  -> Token: print!
 |  |  |  |  -> Token: (
-|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "El resultado de la suma es menor a 20"
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "El resultado de la suma no es 20"
 |  |  |  |  -> Token: )
 |  |  |  |  -> Token: ;
 |  |  |  -> Token: }

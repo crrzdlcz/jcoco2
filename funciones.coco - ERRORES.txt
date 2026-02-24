@@ -1,2 +1,0 @@
---- DETALLE DE ERRORES ENCONTRADOS ---
-- Error Semántico: Línea 13. La sentencia 'break' solo es válida dentro de un 'switch'.

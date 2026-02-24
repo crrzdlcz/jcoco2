@@ -9,7 +9,7 @@ import java.util.List;
 
 
 public class GramaticaCoco implements GramaticaCocoConstants {
-  private Tabla tabla = new Tabla();
+  private Tabla tabla = Tabla.getTabla();
   private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
   private int profundidadSwitch = 0; // Para accion semantica, break solo en switch. 
 
@@ -46,7 +46,7 @@ public class GramaticaCoco implements GramaticaCocoConstants {
             return;
         }
 
-        // Si encontramos el inicio de otra sentencia, paramos ahí para intentar parsear esa nueva sentencia.
+        // Si encontramos el inicio de otra sentencia, paramos ahí para parsear la siguente
         if (t.kind == VAR || t.kind == IF || t.kind == BUCLE_FOR ||
             t.kind == BUCLE_WHILE || t.kind == SWITCH || t.kind == RETURN ||
             t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC) {
@@ -77,7 +77,6 @@ public class GramaticaCoco implements GramaticaCocoConstants {
     if (nombre.startsWith("Literal_FLOAT")) return "float";
     if (nombre.startsWith("Literal_CADENA_DE_CARACTERES")) return "string";
     if (nombre.startsWith("Literal_BOOL")) return "bool";
-    // Si tienes booleanos literales (true/false), agrégalos aquí
     // if (nombre.startsWith("Literal_BOOL")) return "bool";
 
     // 2. Caso Base: Identificadores (Variables)
@@ -152,12 +151,6 @@ public class GramaticaCoco implements GramaticaCocoConstants {
                 }
 
                 return tipoHijo;
-
-        /*if (nodo.getHijos().size() > 1) {
-            return obtenerTipoDeArbol(nodo.getHijos().get(1));
-        }
-        return "error";
-        */
     }
 
         // Caso 5.5
@@ -207,7 +200,7 @@ public class GramaticaCoco implements GramaticaCocoConstants {
                 return "float";
             }
 
-            // String + X = String (concatenación, si tu lenguaje lo permite)
+            // String + X = String
             if (tipoIzq.equals("string") || tipoDer.equals("string")) return "string";
 
             // Si no coinciden, es error de tipos (ej: bool + int)
@@ -215,7 +208,7 @@ public class GramaticaCoco implements GramaticaCocoConstants {
             return "error";
         }
 
-        // B) Operaciones Relacionales (<, >, ==, etc.)
+        // B) Operaciones Relacionales (<, >, ==)
         if (nombre.contains("Relacional")) {
             // Comparar números
             if ((tipoIzq.equals("int") || tipoIzq.equals("float")) &&
@@ -331,7 +324,7 @@ nodoFuncion.agregarHijo(new Arbol ("Token: " + t_decl.image));
 nodoFuncion.agregarHijo(new Arbol ("Token: " + t_id.image));
     nombreFuncion = t_id.image;
     t_flecha = jj_consume_token(FLECHA);
-nodoFuncion.agregarHijo(new Arbol ("Token " + t_flecha.image));
+nodoFuncion.agregarHijo(new Arbol ("Token: " + t_flecha.image));
     tipoRetorno = tiposDeDatos();
 nodoFuncion.agregarHijo(new Arbol("TipoRetorno: " + tipoRetorno));
 /*Simbolo simboloFuncion = new Simbolo(nombreFuncion, "funcion", tabla.getAmbitoActual(), t_id.beginLine);
@@ -352,7 +345,7 @@ tabla.entrarAmbito(nombreFuncion);
 nodoFuncion.agregarHijo(parametros);
 simboloFuncion.parametros.addAll(tiposParametrosActuales);
     t_pc = jj_consume_token(PAREN_CIERRA);
-nodoFuncion.agregarHijo(new Arbol ("Token " + t_pc.image));
+nodoFuncion.agregarHijo(new Arbol ("Token: " + t_pc.image));
     bloque = bloqueDeCodigo();
 nodoFuncion.agregarHijo(bloque);
 tabla.salirAmbito();
@@ -649,7 +642,7 @@ if (tipoRetornoFuncionActual != null )
       if (!esCompatible && !tipoExp.equals("error"))
       {
         registrarError("Error Semantico: Linea " + t_return.beginLine + ", columna " + t_return.beginColumn + ". El tipo de retorno '" + tipoExp +
-        "' no coincide con el tipo decalrado  de la funcion '" + tipoRetornoFuncionActual + "'");
+        "' no coincide con el tipo declarado  de la funcion: '" + tipoRetornoFuncionActual + "'");
       }
 
     }
@@ -1795,25 +1788,36 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     finally { jj_save(4, xla); }
   }
 
-  private boolean jj_3R_accesoVector_1208_11_18()
+  private boolean jj_3R_llamadaFuncion_698_3_13()
+ {
+    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(PAREN_ABRE)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_llamadaFuncion_718_5_16()) jj_scanpos = xsp;
+    if (jj_scan_token(PAREN_CIERRA)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_expresion_786_3_15()
+ {
+    if (jj_3R_expresionRelacional_822_3_19()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_1201_11_18()
  {
     if (jj_scan_token(ID)) return true;
     return false;
   }
 
-  private boolean jj_3R_expresion_793_3_15()
- {
-    if (jj_3R_expresionRelacional_829_3_19()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_977_5_32()
+  private boolean jj_3R_factor_970_5_32()
  {
     if (jj_scan_token(OP_DECREMENTO)) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1207_7_17()
+  private boolean jj_3R_accesoVector_1200_7_17()
  {
     if (jj_scan_token(NUM_ENTERO)) return true;
     return false;
@@ -1826,13 +1830,13 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
-  private boolean jj_3R_expresionRelacional_829_3_19()
+  private boolean jj_3R_expresionRelacional_822_3_19()
  {
-    if (jj_3R_termino_870_3_20()) return true;
+    if (jj_3R_termino_863_3_20()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_919_5_28()
+  private boolean jj_3R_factor_912_5_28()
  {
     if (jj_scan_token(ID)) return true;
     return false;
@@ -1842,43 +1846,49 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
  {
     if (jj_scan_token(ID)) return true;
     if (jj_scan_token(OP_ASIGNACION)) return true;
-    if (jj_3R_expresion_793_3_15()) return true;
+    if (jj_3R_expresion_786_3_15()) return true;
     return false;
   }
 
-  private boolean jj_3R_termino_870_3_20()
+  private boolean jj_3R_termino_863_3_20()
  {
-    if (jj_3R_factor_909_5_21()) return true;
+    if (jj_3R_factor_902_5_21()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_914_5_27()
+  private boolean jj_3R_factor_907_5_27()
  {
-    if (jj_3R_llamadaFuncion_705_3_13()) return true;
+    if (jj_3R_llamadaFuncion_698_3_13()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_960_5_31()
+  private boolean jj_3R_factor_953_5_31()
  {
     if (jj_scan_token(OP_INCREMENTO)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_913_5_26()
+  private boolean jj_3R_factor_906_5_26()
  {
     if (jj_scan_token(FALSE)) return true;
     return false;
   }
 
-  private boolean jj_3R_llamadaFuncion_725_5_16()
+  private boolean jj_3R_llamadaFuncion_718_5_16()
  {
-    if (jj_3R_expresion_793_3_15()) return true;
+    if (jj_3R_expresion_786_3_15()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_912_5_25()
+  private boolean jj_3R_factor_905_5_25()
  {
     if (jj_scan_token(TRUE)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_904_5_24()
+ {
+    if (jj_scan_token(STR)) return true;
     return false;
   }
 
@@ -1889,45 +1899,39 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
-  private boolean jj_3R_factor_911_5_24()
- {
-    if (jj_scan_token(STR)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_910_5_23()
+  private boolean jj_3R_factor_903_5_23()
  {
     if (jj_scan_token(NUM_FLOTANTE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_909_5_21()
+  private boolean jj_3R_factor_902_5_21()
  {
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_factor_909_5_22()) {
+    if (jj_3R_factor_902_5_22()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_910_5_23()) {
+    if (jj_3R_factor_903_5_23()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_911_5_24()) {
+    if (jj_3R_factor_904_5_24()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_912_5_25()) {
+    if (jj_3R_factor_905_5_25()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_913_5_26()) {
+    if (jj_3R_factor_906_5_26()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_914_5_27()) {
+    if (jj_3R_factor_907_5_27()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_919_5_28()) {
+    if (jj_3R_factor_912_5_28()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_942_5_29()) {
+    if (jj_3R_factor_935_5_29()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_952_5_30()) {
+    if (jj_3R_factor_945_5_30()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_960_5_31()) {
+    if (jj_3R_factor_953_5_31()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_977_5_32()) {
+    if (jj_3R_factor_970_5_32()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_995_5_33()) return true;
+    if (jj_3R_factor_988_5_33()) return true;
     }
     }
     }
@@ -1942,13 +1946,13 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
-  private boolean jj_3R_factor_909_5_22()
+  private boolean jj_3R_factor_902_5_22()
  {
     if (jj_scan_token(NUM_ENTERO)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_952_5_30()
+  private boolean jj_3R_factor_945_5_30()
  {
     if (jj_scan_token(OP_NOT)) return true;
     return false;
@@ -1956,11 +1960,11 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 
   private boolean jj_3_2()
  {
-    if (jj_3R_accesoVector_1181_3_14()) return true;
+    if (jj_3R_accesoVector_1174_3_14()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_995_5_33()
+  private boolean jj_3R_factor_988_5_33()
  {
     if (jj_scan_token(OP_RESTA)) return true;
     return false;
@@ -1968,37 +1972,26 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 
   private boolean jj_3_1()
  {
-    if (jj_3R_llamadaFuncion_705_3_13()) return true;
+    if (jj_3R_llamadaFuncion_698_3_13()) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1181_3_14()
+  private boolean jj_3R_accesoVector_1174_3_14()
  {
     if (jj_scan_token(ID)) return true;
     if (jj_scan_token(CORCHETE_ABRE)) return true;
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_accesoVector_1207_7_17()) {
+    if (jj_3R_accesoVector_1200_7_17()) {
     jj_scanpos = xsp;
-    if (jj_3R_accesoVector_1208_11_18()) return true;
+    if (jj_3R_accesoVector_1201_11_18()) return true;
     }
     return false;
   }
 
-  private boolean jj_3R_factor_942_5_29()
+  private boolean jj_3R_factor_935_5_29()
  {
     if (jj_scan_token(PAREN_ABRE)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_llamadaFuncion_705_3_13()
- {
-    if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(PAREN_ABRE)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_llamadaFuncion_725_5_16()) jj_scanpos = xsp;
-    if (jj_scan_token(PAREN_CIERRA)) return true;
     return false;
   }
 
