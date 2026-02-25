@@ -5,13 +5,23 @@ import coco.Arbol;
 import coco.Tabla;
 import coco.Simbolo;
 import coco.Colores;
+import coco.Pila;
 import java.util.List;
 
 
 public class GramaticaCoco implements GramaticaCocoConstants {
+  // tABLA DE SIMBOLOS GENERADA.
   private Tabla tabla = Tabla.getTabla();
+  private Pila pilaSemantica = new Pila();
   private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
   private int profundidadSwitch = 0; // Para accion semantica, break solo en switch. 
+
+
+  // Getter para la pila
+  public Pila getPilaSemantica()
+  {
+    return this.pilaSemantica;
+  }
 
   public static void registrarError(String msj)
   {
@@ -23,7 +33,8 @@ public class GramaticaCoco implements GramaticaCocoConstants {
     return listaErrores;
   }
 
-  // Para recuperarse de errores sintacticos
+
+  /*-- RECUPERACION DE ERRORES SINTACTICOS --*/
   void recuperacionSintactica() throws ParseException {
     Token t;
     while (true) {
@@ -242,6 +253,73 @@ public class GramaticaCoco implements GramaticaCocoConstants {
 
   // Lista que guarda los tipos de los parametros durante el parseo.
   private java.util.List<String> tiposParametrosActuales = new java.util.ArrayList<>();
+
+
+
+        /*-- PILA SEMANTICA --*/
+
+  // Método para operadores binarios
+  private void validarOperacionBinaria(Token op) {
+      // Si la pila está vacía, no salimos
+      if (pilaSemantica.estaVacia()) return;
+      String tipoDer = (String) pilaSemantica.pop();
+
+      if (pilaSemantica.estaVacia()) return;
+      String tipoIzq = (String) pilaSemantica.pop();
+
+      String tipoResultado = "error";
+
+      // --- Lógica de Tipos (Aritmética, Relacional, Lógica) ---
+
+      // Operadores Aritméticos (+, -, *, /, %)
+      if (op.kind == OP_SUMA || op.kind == OP_RESTA || op.kind == OP_MULTI || op.kind == OP_DIVI || op.kind == OP_MOD) {
+          if (tipoIzq.equals("int") && tipoDer.equals("int")) {
+              tipoResultado = "int";
+          } else if ((tipoIzq.equals("int") || tipoIzq.equals("float")) &&
+                     (tipoDer.equals("int") || tipoDer.equals("float"))) {
+              tipoResultado = "float";
+          } else if (op.kind == OP_SUMA && (tipoIzq.equals("string") || tipoDer.equals("string"))) {
+              tipoResultado = "string"; // Pa concatenacion
+          } else {
+              if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                  registrarError("Error Sem\u00e1ntico: No se puede aplicar '" + op.image + "' entre tipos " + tipoIzq + " y " + tipoDer);
+              }
+          }
+      }
+      // Operadores Lógicos (&&, ||)
+      else if (op.kind == OP_AND || op.kind == OP_OR) {
+          if (tipoIzq.equals("bool") && tipoDer.equals("bool")) {
+              tipoResultado = "bool";
+          } else {
+              if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                  registrarError("Error Sem\u00e1ntico: Operador '" + op.image + "' requiere operandos bool.");
+              }
+          }
+      }
+      // Operadores Relacionales (<, >, ==, etc.)
+      else if (op.kind == OP_MAYOR_QUE || op.kind == OP_MENOR_QUE || op.kind == OP_MAYOR_IGUAL ||
+               op.kind == OP_MENOR_IGUAL || op.kind == OP_IGUALDAD || op.kind == OP_DESIGUALDAD) {
+           // Comparación de números
+           if ((tipoIzq.equals("int") || tipoIzq.equals("float")) &&
+               (tipoDer.equals("int") || tipoDer.equals("float"))) {
+               tipoResultado = "bool";
+           }
+           // Comparación de strings (igualdad/desigualdad)
+           else if (tipoIzq.equals("string") && tipoDer.equals("string")) {
+               tipoResultado = "bool";
+           }
+           else {
+               if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                   registrarError("Error Sem\u00e1ntico: No se pueden comparar tipos " + tipoIzq + " y " + tipoDer);
+               }
+           }
+      }
+    System.out.println("DEBUG Pila: Op='" + op.image + "', Izq=" + tipoIzq + ", Der=" + tipoDer + " -> Res=" + tipoResultado);
+
+
+      // Empujar el resultado a la pila
+      pilaSemantica.push(tipoResultado);
+  }
 
   final public Arbol Coco() throws ParseException {Arbol raiz = new Arbol("Ra\u00edz");
   Arbol fn, stmt;
@@ -534,43 +612,55 @@ nodoBloque.agregarHijo(new Arbol ("Token: " + t_llave_c.image));
   Arbol llamadaFunc, accVector, exp;
   Token t_pc, t_asig, t_id;
   Simbolo simboloUsado = null;
+
+  String tipoLadoIzquierdo;
+  String tipoLadoDerecho;
     if (jj_2_1(3)) {
       llamadaFunc = llamadaFuncion();
 nodo.agregarHijo(llamadaFunc);
       t_pc = jj_consume_token(PUNTOYCOMA);
 nodo.agregarHijo(new Arbol ("Token: " + t_pc.image));
-{if ("" != null) return nodo;}
+if (!pilaSemantica.estaVacia())
+      {
+          pilaSemantica.pop();
+      }
+      {if ("" != null) return nodo;}
     } else if (jj_2_2(3)) {
       accVector = accesoVector();
 nodo.agregarHijo(accVector);
+      // accesoVector ya empujó (push) el tipo de los elementos del vector a la pila.
+
       t_asig = jj_consume_token(OP_ASIGNACION);
 nodo.agregarHijo(new Arbol("Token: " + t_asig.image));
       exp = expresion();
-// Comprobaciond de tipos      
-          String nombreVector = accVector.getHijos().get(0).getNombreProduccion().split(": ")[1].trim();
-          Simbolo simboloVector = tabla.buscar(nombreVector);
+// La expresión empujó (push) su tipo resultado.
 
-           if (simboloVector != null)
-           {
-         String tipoElemento = simboloVector.tipoElemento;
-         String tipoExpresion = obtenerTipoDeArbol(exp);
+      // Sacamos el tipo de la expresión (lado derecho)
+      tipoLadoDerecho = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoLadoDerecho = (String) pilaSemantica.pop();
+      }
 
-         if (!tipoExpresion.equals("error"))
+      // Sacamos el tipo del vector (lado izquierdo, empujado por accesoVector)
+      tipoLadoIzquierdo = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoLadoIzquierdo = (String) pilaSemantica.pop();
+      }
+
+      // Validación de Tipos
+      if (!tipoLadoDerecho.equals("error") && !tipoLadoIzquierdo.equals("error"))
+      {
+         boolean esCompatible = tipoLadoIzquierdo.equals(tipoLadoDerecho) ||
+                              (tipoLadoIzquierdo.equals("float") && tipoLadoDerecho.equals("int"));
+
+         if (!esCompatible)
          {
-
-            boolean esCompatible = tipoElemento.equals(tipoExpresion) ||
-                                 (tipoElemento.equals("float") && tipoExpresion.equals("int"));
-
-           if (!esCompatible)
-           {
-            registrarError("Error Sem\u00e1ntico: L\u00ednea " + t_asig.beginLine + ". No se puede asignar tipo '" + tipoExpresion +
-                           "' al vector '" + nombreVector + "' que es de tipo '" + tipoElemento + "'.");
-           }
+           registrarError("Error Sem\u00e1ntico: L\u00ednea " + t_asig.beginLine + ". No se puede asignar tipo '" + tipoLadoDerecho +
+                          "' al vector que es de tipo '" + tipoLadoIzquierdo + "'.");
          }
-       }
-       // -- Fin comprobaciond de tipos  
+      }
 
-          nodo.agregarHijo(exp);
+      nodo.agregarHijo(exp);
       t_pc = jj_consume_token(PUNTOYCOMA);
 nodo.agregarHijo(new Arbol("Token: " + t_pc.image));
 {if ("" != null) return nodo;}
@@ -585,32 +675,38 @@ nodo.agregarHijo(new Arbol("ID_Asignacion: " + t_id.image));
         {
           registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn +
           " La variable '" + t_id.image + "' no ha sido declarada.");
+          tipoLadoIzquierdo = "error";
+        }
+        else
+        {
+          tipoLadoIzquierdo = simboloUsado.tipo;
         }
         t_asig = jj_consume_token(OP_ASIGNACION);
 nodo.agregarHijo(new Arbol("Token: " + t_asig.image));
         exp = expresion();
-if (simboloUsado != null)
+// La expresión empujó (push) su tipo resultado.
+
+      // Sacamos el tipo de la expresión (lado derecho)
+      tipoLadoDerecho = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoLadoDerecho = (String) pilaSemantica.pop();
+      }
+
+      // Validación de Tipos usando la variable local tipoLadoIzquierdo
+      if (!tipoLadoDerecho.equals("error") && !tipoLadoIzquierdo.equals("error"))
+      {
+        if (!tipoLadoIzquierdo.equals(tipoLadoDerecho))
+        {
+          boolean esCompatible = (tipoLadoIzquierdo.equals("float") && tipoLadoDerecho.equals("int"));
+
+          if (!esCompatible)
           {
-            String tipoVariable = simboloUsado.tipo;
-            String tipoExpresion = obtenerTipoDeArbol(exp);
-
-            if (tipoExpresion == null) tipoExpresion = "error";
-
-
-            if (!tipoExpresion.equals("error"))
-            {
-              if (!tipoVariable.equals(tipoExpresion))
-          {
-            boolean esCompatible = (tipoVariable.equals("float") && tipoExpresion.equals("int"));
-
-            if (!esCompatible)
-            {
-              registrarError("Error Sem\u00e1ntico: L\u00ednea " + t_id.beginLine + ". Tipos incompatibles. No se puede asignar '" + tipoExpresion + "' a variable de tipo '" + tipoVariable + "'");
-            }
+            registrarError("Error Sem\u00e1ntico: L\u00ednea " + t_id.beginLine + ". Tipos incompatibles. No se puede asignar '" + tipoLadoDerecho + "' a variable de tipo '" + tipoLadoIzquierdo + "'");
           }
         }
-     }
-         nodo.agregarHijo(exp);
+      }
+
+      nodo.agregarHijo(exp);
         t_pc = jj_consume_token(PUNTOYCOMA);
 nodo.agregarHijo(new Arbol("Token: " + t_pc.image));
 {if ("" != null) return nodo;}
@@ -633,9 +729,14 @@ nodo.agregarHijo(new Arbol("Token: " + t_pc.image));
 nodoRetorno.agregarHijo(new Arbol ("Token: " + t_return.image));
     exp = expresion();
 nodoRetorno.agregarHijo(exp);
-if (tipoRetornoFuncionActual != null )
+String tipoExp = "error";
+  if (!pilaSemantica.estaVacia())
+  {
+      tipoExp = (String) pilaSemantica.pop();
+  }
+    if (tipoRetornoFuncionActual != null )
     {
-      String tipoExp = obtenerTipoDeArbol(exp);
+      //String tipoExp = obtenerTipoDeArbol(exp);
 
       boolean esCompatible = tipoExp.equals(tipoRetornoFuncionActual) || (tipoRetornoFuncionActual.equals("float") && tipoExp.equals("int"));
 
@@ -656,10 +757,15 @@ nodoRetorno.agregarHijo(new Arbol ("Token: " + t_pc.image));
   Arbol exp;
   Token t_id, t_pa, t_pc, t_coma;
   java.util.List<String> tiposArgumentos = new java.util.ArrayList<>();
+
+  // Variables para validación y pila
+  Simbolo simbolo = null;
+  String tipoRetorno = "error";
+  String tipoArg = "error";
     t_id = jj_consume_token(ID);
 nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_id.image));
 
-    Simbolo simbolo = tabla.buscar(t_id.image);
+    simbolo = tabla.buscar(t_id.image);
     if (simbolo == null)
     {
       registrarError("Error Semantico: L\u00ednea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " La funci\u00f3n '" + t_id.image + "' no ha sido declarada.");
@@ -668,7 +774,12 @@ nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_id.image));
     {
       registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image
       + "' no es una funci\u00f3n (es de tipo '" + simbolo.tipo + "').");
-      simbolo = null; // Pa no validar cosas que no sean de una funcion.
+      simbolo = null; // Invalidamos para no validar argumentos abajo
+    }
+    else
+    {
+      // Si existe y es función, guardamos su tipo de retorno
+      tipoRetorno = (simbolo.tipoRetorno != null) ? simbolo.tipoRetorno : "error";
     }
     t_pa = jj_consume_token(PAREN_ABRE);
 nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pa.image));
@@ -686,8 +797,15 @@ nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pa.image));
     case STR:{
       exp = expresion();
 nodoLlamadaFuncion.agregarHijo(exp);
-      // Pa validacion de argumentos en una funcion. - > se guarda el tipo de argumento actual...
-      tiposArgumentos.add(obtenerTipoDeArbol(exp));
+
+      // 1. POP: Sacamos el tipo que la expresión dejó en la pila
+      tipoArg = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoArg = (String) pilaSemantica.pop();
+      }
+
+      // 2. Guardamos ese tipo en la lista para validar contra los parámetros
+      tiposArgumentos.add(tipoArg);
       label_5:
       while (true) {
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -703,8 +821,13 @@ nodoLlamadaFuncion.agregarHijo(exp);
 nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_coma.image));
         exp = expresion();
 nodoLlamadaFuncion.agregarHijo(exp);
-            // Obtener el tipo del argumento desde el arbol
-            tiposArgumentos.add(obtenerTipoDeArbol(exp));
+
+        // Repetimos la lógica para los siguientes argumentos
+        tipoArg = "error";
+        if (!pilaSemantica.estaVacia()) {
+            tipoArg = (String) pilaSemantica.pop();
+        }
+        tiposArgumentos.add(tipoArg);
       }
       break;
       }
@@ -719,20 +842,19 @@ if (simbolo != null)
       int numEsperados = simbolo.parametros.size();
       int numActuales = tiposArgumentos.size();
 
-      // Validar cantidad de argumentos
       if (numActuales != numEsperados)
       {
         registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ". La funci\u00f3n '" + t_id.image +
         "' espera " + numEsperados + " argumentos, pero se encontraron " + numActuales + ".");
-      } else
+      }
+      else
       {
-            // Validamos los  tipos uno por uno.
+        // Validamos tipos uno por uno
         for (int i = 0; i < numActuales; i++)
         {
           String tipoEsp = simbolo.parametros.get(i);
           String tipoAct = tiposArgumentos.get(i);
 
-          // Deben ser del  mismo tipo // tmb int->float
           boolean compatible = tipoEsp.equals(tipoAct) || (tipoEsp.equals("float") && tipoAct.equals("int"));
 
           if (!compatible && !tipoAct.equals("error"))
@@ -743,7 +865,8 @@ if (simbolo != null)
         }
       }
     }
-{if ("" != null) return nodoLlamadaFuncion;}
+pilaSemantica.push(tipoRetorno);
+     {if ("" != null) return nodoLlamadaFuncion;}
     throw new Error("Missing return statement in function");
 }
 
@@ -785,7 +908,9 @@ if (simbolo != null)
         throw new ParseException();
       }
       derecha = expresionRelacional();
-// Nodo para las operaciones.
+// Accion sematica obt tipos, validar y empujar
+      validarOperacionBinaria(op);
+      // Nodo para las operaciones.
       // Nuevo padre.
       Arbol nodoOperacion = new Arbol("Operacion_SUM_RES_OR: " + op.image);
 
@@ -858,7 +983,10 @@ if (simbolo != null)
       }
       // Segundo termino (derecha);
           derecha = termino();
-// Nuevo nodo padre (operacion).
+// Pila
+          validarOperacionBinaria(op);
+
+      // Nuevo nodo padre (operacion).
       Arbol nodoOperacion = new Arbol("Operador_Relacional" +  op.image);
 
       // Operando izquierdo
@@ -919,7 +1047,11 @@ if (simbolo != null)
         throw new ParseException();
       }
       derecha = factor();
-// Nuevo nodo
+//Pila 
+      validarOperacionBinaria(op);
+
+
+          // Nuevo nodo
           Arbol nodoOperacion = new Arbol("Operacion_MUL_DIV_MOD_AND: " + op.image);
 
       // Acumulamos el mini arbol anterior (la o las rama enteriores).
@@ -947,27 +1079,32 @@ if (simbolo != null)
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case NUM_ENTERO:{
       t = jj_consume_token(NUM_ENTERO);
-{if ("" != null) return new Arbol("Literal_INT: " + t.image);}
+pilaSemantica.push("int"); // Push entero
+      {if ("" != null) return new Arbol("Literal_INT: " + t.image);}
       break;
       }
     case NUM_FLOTANTE:{
       t = jj_consume_token(NUM_FLOTANTE);
-{if ("" != null) return new Arbol("Literal_FLOAT: " + t.image);}
+pilaSemantica.push("float"); // Push flotante
+          {if ("" != null) return new Arbol("Literal_FLOAT: " + t.image);}
       break;
       }
     case STR:{
       t = jj_consume_token(STR);
-{if ("" != null) return new Arbol("Literal_CADENA_DE_CARACTERES: " + t.image);}
+pilaSemantica.push("string"); // Push string
+      {if ("" != null) return new Arbol("Literal_CADENA_DE_CARACTERES: " + t.image);}
       break;
       }
     case TRUE:{
       t = jj_consume_token(TRUE);
-{if ("" != null) return new Arbol("Literal_BOOL: true");}
+pilaSemantica.push("bool"); // Push bool
+      {if ("" != null) return new Arbol("Literal_BOOL: true");}
       break;
       }
     case FALSE:{
       t = jj_consume_token(FALSE);
-{if ("" != null) return new Arbol("Literal_BOOL: false");}
+pilaSemantica.push("bool"); // Push bool
+      {if ("" != null) return new Arbol("Literal_BOOL: false");}
       break;
       }
     default:
@@ -980,24 +1117,22 @@ if (simbolo != null)
         case ID:{
           t = jj_consume_token(ID);
 Simbolo simboloUsado = tabla.buscar(t.image);
-    if (simboloUsado == null)
-    {
-      // Error por ambitos !S
-      /*System.err.println("Error Semantico ??? [:v] Línea: " + t.beginLine + " La variable o función '" 
-        + t.image + "' no ha sido declarada.");*/
+      String tipo = "error"; // Default error
 
-                registrarError("Error Semantico: L\u00ednea " + t.beginLine + ", columna " + t.beginColumn + " La variable o funcion '" + t.image + "' no ha sido declarada.");
-    }
-    /**/
-        Simbolo simbolo = tabla.buscar(t.image);
-        if (simbolo != null && simbolo.tipo.equals("funcion"))
-        {
-          //System.err.println(Colores.ROJO + "Error: '" + t.image + "' es una función, debe llamarse con ()");
-          //registrarError("Error: Línea " + t.beginLine + " La funcion'" + t.image + "' no ha sido declarada.");
-          registrarError("Error Semantico: L\u00ednea " + t.beginLine + ", columna " + t.beginColumn + " La funci\u00f3n '" + t.image + "' no puede usarse como variable (falta llamar con '()').");
-        }
+      if (simboloUsado == null)
+      {
+        registrarError("Error Semantico: L\u00ednea " + t.beginLine + ", columna " + t.beginColumn + " La variable '" + t.image + "' no ha sido declarada.");
+      }
+      else if (simboloUsado.tipo.equals("funcion"))
+      {
+         registrarError("Error Semantico: L\u00ednea " + t.beginLine + " La funci\u00f3n '" + t.image + "' debe llamarse con ().");
+      }
+      else {
+         tipo = simboloUsado.tipo;
+      }
 
-    {if ("" != null) return new Arbol("Literal_IDENTIFICADOR: " + t.image);}
+      pilaSemantica.push(tipo); // PUSH tipo de la variable
+      {if ("" != null) return new Arbol("Literal_IDENTIFICADOR: " + t.image);}
           break;
           }
         case PAREN_ABRE:{
@@ -1014,7 +1149,18 @@ Arbol nodoAgrupacion = new Arbol("Agrupacion");
         case OP_NOT:{
           t = jj_consume_token(OP_NOT);
           nodo = factor();
-Arbol nodoUnario = new Arbol("Unario_NOT");
+String tipoHijo = (String) pilaSemantica.pop();
+
+        // Pa la pila
+        if (!tipoHijo.equals("bool") && !tipoHijo.equals("error"))
+        {
+        registrarError("Error Sem\u00e1ntico: El operador '!' requiere bool, se encontr\u00f3 " + tipoHijo);
+        pilaSemantica.push("error");
+    } else {
+        pilaSemantica.push("bool"); // Bool
+    }
+
+    Arbol nodoUnario = new Arbol("Unario_NOT");
     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
     nodoUnario.agregarHijo(nodo);
     {if ("" != null) return nodoUnario;}
@@ -1023,7 +1169,21 @@ Arbol nodoUnario = new Arbol("Unario_NOT");
         case OP_INCREMENTO:{
           t = jj_consume_token(OP_INCREMENTO);
           nodo = factor();
-Arbol nodoUnario = new Arbol("Unario_INC");
+// Pa la pila
+    String tipoHijo = (String) pilaSemantica.pop(); // Pila
+
+    if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+    {
+        registrarError("Error Sem\u00e1ntico: El operador '++' requiere num\u00e9rico.");
+        pilaSemantica.push("error");
+    }
+    else
+    {
+        pilaSemantica.push(tipoHijo); // Mantiene el tipo (int++ sigue siendo int)
+    }
+        // Fin pila
+
+     Arbol nodoUnario = new Arbol("Unario_INC");
      nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
      nodoUnario.agregarHijo(nodo);
 
@@ -1041,7 +1201,21 @@ Arbol nodoUnario = new Arbol("Unario_INC");
         case OP_DECREMENTO:{
           t = jj_consume_token(OP_DECREMENTO);
           nodo = factor();
-Arbol nodoUnario = new Arbol("Unario_DEC");
+// Pila
+     String tipoHijo = (String) pilaSemantica.pop();
+
+     if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+     {
+         registrarError("Error Sem\u00e1ntico: El operador '--' requiere num\u00e9rico.");
+         pilaSemantica.push("error");
+     }
+     else
+     {
+         pilaSemantica.push(tipoHijo);
+     }
+     // Fin pila.
+
+     Arbol nodoUnario = new Arbol("Unario_DEC");
      nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
      nodoUnario.agregarHijo(nodo);
 
@@ -1060,7 +1234,21 @@ Arbol nodoUnario = new Arbol("Unario_DEC");
         case OP_RESTA:{
           t = jj_consume_token(OP_RESTA);
           nodo = factor();
-Arbol nodoUnario = new Arbol("Unario_RESTA");
+// Pila
+        String tipoHijo = (String) pilaSemantica.pop();
+    // Validar numérico
+    if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+    {
+      registrarError("Error Sem\u00e1ntico: El operador '-' unario requiere num\u00e9rico.");
+      pilaSemantica.push("error");
+    }
+    else
+    {
+      pilaSemantica.push(tipoHijo);
+    }
+     // Fin pila
+
+    Arbol nodoUnario = new Arbol("Unario_RESTA");
     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
     nodoUnario.agregarHijo(nodo);
     {if ("" != null) return nodoUnario;}
@@ -1100,8 +1288,12 @@ nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_id.image));
 nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_asig.image));
       exp = expresion();
 nodoDeclaracion.agregarHijo(exp);
-        // Checar que coincida el tipo de dato con lo que se va asignar.
-        String tipoExpr = obtenerTipoDeArbol(exp);
+        // Checar que coincida el tipo de dato con lo que se va asignar.**
+        String tipoExpr = "error";
+        if (!pilaSemantica.estaVacia())
+        {
+          tipoExpr = (String) pilaSemantica.pop();
+        }
 
         if (!tipoExpr.equals("error"))
         {
@@ -1137,6 +1329,7 @@ nodoSalida.agregarHijo(new Arbol("Token: " + t_salida.image));
 nodoSalida.agregarHijo(new Arbol("Token: " + t_pa.image));
     exp = expresion();
 nodoSalida.agregarHijo(exp);
+    if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
     t_pc = jj_consume_token(PAREN_CIERRA);
 nodoSalida.agregarHijo(new Arbol("Token: " + t_pc.image));
     t_pyc = jj_consume_token(PUNTOYCOMA);
@@ -1159,7 +1352,7 @@ nodoEntrada.agregarHijo(accVector);
         //  La función accesoVector() ya se encarga de verificar 
         // si el vector existe y si el índice es válido.
         // **********
-
+        if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
     } else {
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
       case ID:{
@@ -1252,6 +1445,7 @@ nodoAccesoVec.agregarHijo(new Arbol("ID_Vector: " + t_id.image));
         + "' no ha sido declarado.");*/
 
           registrarError("Error Semantico: L\u00ednea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " El vector '" + t_id.image + "' no ha sido declarado.");
+          pilaSemantica.push("error");
 
     }
     else if (!"vector".equals(simboloVector.tipo))
@@ -1260,6 +1454,11 @@ nodoAccesoVec.agregarHijo(new Arbol("ID_Vector: " + t_id.image));
         + "' no es un vector.");*/
 
       registrarError("Error Semantico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image + "' no es un vector.");
+      pilaSemantica.push("error");
+    }
+    else
+    {
+      pilaSemantica.push(simboloVector.tipoElemento);
     }
     t_ca = jj_consume_token(CORCHETE_ABRE);
 nodoAccesoVec.agregarHijo(new Arbol("Token: " + t_ca.image));
@@ -1328,6 +1527,8 @@ nodoBucleFor.agregarHijo(new Arbol("Token: " + t_pyc1.image));
     case STR:{
       condicion = expresion();
 nodoBucleFor.agregarHijo(condicion);
+        if (!pilaSemantica.estaVacia()) pilaSemantica.pop(); // <--- Agregar POP
+
       break;
       }
     default:
@@ -1389,6 +1590,7 @@ nodoAsignacion.agregarHijo(new Arbol("ID_Asignacion: " + t_id.image));
 nodoAsignacion.agregarHijo(new Arbol("Token: " + t_asig.image));
       exp = expresion();
 nodoAsignacion.agregarHijo(exp);
+          if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
 {if ("" != null) return nodoAsignacion;}
     } else {
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -1399,7 +1601,9 @@ nodoAsignacion.agregarHijo(accVector);
 nodoAsignacion.agregarHijo(new Arbol("Token: " + t_asig.image));
         exp = expresion();
 nodoAsignacion.agregarHijo(exp);
-{if ("" != null) return nodoAsignacion;}
+      if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
+      if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
+      {if ("" != null) return nodoAsignacion;}
         break;
         }
       default:
@@ -1447,10 +1651,16 @@ nodoBucleWhile.agregarHijo(new Arbol("Token: " + t_while.image));
 nodoBucleWhile.agregarHijo(new Arbol("Token: " + t_pa.image));
     condicion = expresion();
 nodoBucleWhile.agregarHijo(condicion);
-String tipoCond = obtenerTipoDeArbol(condicion);
+String tipoCond = "error";
+
+        if (!pilaSemantica.estaVacia())
+        {
+      tipoCond = (String) pilaSemantica.pop();
+        }
+
     if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
-      registrarError("Error Semantico: La condicion del bucle while debe ser del tipo 'bool', se encontr\u00f3 '" + tipoCond + "\u00b4.");
+      registrarError("Error Semantico: La condicion del bucle while debe ser del tipo 'bool', se encontr\u00f3 '" + tipoCond + "'.");
     }
     t_pc = jj_consume_token(PAREN_CIERRA);
 nodoBucleWhile.agregarHijo(new Arbol("Token: " + t_pc.image));
@@ -1476,11 +1686,16 @@ nodoIf.agregarHijo(new Arbol("Token: " + t_pa.image));
     // Condición.
       condicion = expresion();
 nodoIf.agregarHijo(condicion);
-String tipoCond = obtenerTipoDeArbol(condicion);
+String tipoCond = "error";
+    if (!pilaSemantica.estaVacia())
+    {
+        tipoCond = (String) pilaSemantica.pop();
+    }
+
     if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
-      registrarError("Error Semantico: Linea " + t_pa.beginLine + ", columna" + t_pa.beginLine +
-      "La condicion del if debe ser del tipo 'bool', se encontr\u00f3 '" + tipoCond + "'.");
+      registrarError("Error Semantico: Linea " + t_pa.beginLine + ", columna" + t_pa.beginColumn +
+      " La condicion del if debe ser del tipo 'bool', se encontr\u00f3 '" + tipoCond + "'.");
     }
     // ")"
       t_pc = jj_consume_token(PAREN_CIERRA);
@@ -1531,8 +1746,12 @@ nodoSwitch.agregarHijo(new Arbol("Token: " + t_switch.image));
 nodoSwitch.agregarHijo(new Arbol("Token: " + t_pa.image));
     expresionControl = expresion();
 nodoSwitch.agregarHijo(expresionControl);
-    tipoControl = obtenerTipoDeArbol(expresionControl); // Obtenemos el tipo
 
+    tipoControl = "error";
+    if (!pilaSemantica.estaVacia())
+    {
+        tipoControl = (String) pilaSemantica.pop();
+    }
     t_pc = jj_consume_token(PAREN_CIERRA);
 nodoSwitch.agregarHijo(new Arbol("Token: " + t_pc.image));
     t_lla = jj_consume_token(LLAVE_ABRE);
@@ -1788,57 +2007,82 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     finally { jj_save(4, xla); }
   }
 
-  private boolean jj_3R_llamadaFuncion_698_3_13()
+  private boolean jj_3R_factor_1121_5_31()
+ {
+    if (jj_scan_token(OP_INCREMENTO)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1071_5_28()
  {
     if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(PAREN_ABRE)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_llamadaFuncion_835_5_16()
+ {
+    if (jj_3R_expresion_915_3_15()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_1400_3_14()
+ {
+    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(CORCHETE_ABRE)) return true;
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_llamadaFuncion_718_5_16()) jj_scanpos = xsp;
-    if (jj_scan_token(PAREN_CIERRA)) return true;
+    if (jj_3R_accesoVector_1432_7_17()) {
+    jj_scanpos = xsp;
+    if (jj_3R_accesoVector_1433_11_18()) return true;
+    }
     return false;
   }
 
-  private boolean jj_3R_expresion_786_3_15()
+  private boolean jj_3_1()
  {
-    if (jj_3R_expresionRelacional_822_3_19()) return true;
+    if (jj_3R_llamadaFuncion_810_3_13()) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1201_11_18()
+  private boolean jj_3R_factor_1066_5_27()
+ {
+    if (jj_3R_llamadaFuncion_810_3_13()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_1433_11_18()
  {
     if (jj_scan_token(ID)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_970_5_32()
+  private boolean jj_3R_factor_1061_5_26()
+ {
+    if (jj_scan_token(FALSE)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1153_5_32()
  {
     if (jj_scan_token(OP_DECREMENTO)) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1200_7_17()
+  private boolean jj_3R_accesoVector_1432_7_17()
  {
     if (jj_scan_token(NUM_ENTERO)) return true;
     return false;
   }
 
-  private boolean jj_3_3()
+  private boolean jj_3R_factor_1056_5_25()
  {
-    if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(PAREN_ABRE)) return true;
+    if (jj_scan_token(TRUE)) return true;
     return false;
   }
 
-  private boolean jj_3R_expresionRelacional_822_3_19()
+  private boolean jj_3R_factor_1102_5_30()
  {
-    if (jj_3R_termino_863_3_20()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_912_5_28()
- {
-    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(OP_NOT)) return true;
     return false;
   }
 
@@ -1846,49 +2090,107 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
  {
     if (jj_scan_token(ID)) return true;
     if (jj_scan_token(OP_ASIGNACION)) return true;
-    if (jj_3R_expresion_786_3_15()) return true;
+    if (jj_3R_expresion_915_3_15()) return true;
     return false;
   }
 
-  private boolean jj_3R_termino_863_3_20()
+  private boolean jj_3R_expresion_915_3_15()
  {
-    if (jj_3R_factor_902_5_21()) return true;
+    if (jj_3R_expresionRelacional_953_3_19()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_907_5_27()
- {
-    if (jj_3R_llamadaFuncion_698_3_13()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_953_5_31()
- {
-    if (jj_scan_token(OP_INCREMENTO)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_906_5_26()
- {
-    if (jj_scan_token(FALSE)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_llamadaFuncion_718_5_16()
- {
-    if (jj_3R_expresion_786_3_15()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_905_5_25()
- {
-    if (jj_scan_token(TRUE)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_904_5_24()
+  private boolean jj_3R_factor_1051_5_24()
  {
     if (jj_scan_token(STR)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1046_5_23()
+ {
+    if (jj_scan_token(NUM_FLOTANTE)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1186_5_33()
+ {
+    if (jj_scan_token(OP_RESTA)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1092_5_29()
+ {
+    if (jj_scan_token(PAREN_ABRE)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_expresionRelacional_953_3_19()
+ {
+    if (jj_3R_termino_998_3_20()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_llamadaFuncion_810_3_13()
+ {
+    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(PAREN_ABRE)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_llamadaFuncion_835_5_16()) jj_scanpos = xsp;
+    if (jj_scan_token(PAREN_CIERRA)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_termino_998_3_20()
+ {
+    if (jj_3R_factor_1041_5_21()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1041_5_21()
+ {
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_factor_1041_5_22()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1046_5_23()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1051_5_24()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1056_5_25()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1061_5_26()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1066_5_27()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1071_5_28()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1092_5_29()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1102_5_30()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1121_5_31()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1153_5_32()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1186_5_33()) return true;
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    return false;
+  }
+
+  private boolean jj_3R_factor_1041_5_22()
+ {
+    if (jj_scan_token(NUM_ENTERO)) return true;
     return false;
   }
 
@@ -1899,98 +2201,15 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
-  private boolean jj_3R_factor_903_5_23()
- {
-    if (jj_scan_token(NUM_FLOTANTE)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_902_5_21()
- {
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_factor_902_5_22()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_903_5_23()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_904_5_24()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_905_5_25()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_906_5_26()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_907_5_27()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_912_5_28()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_935_5_29()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_945_5_30()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_953_5_31()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_970_5_32()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_988_5_33()) return true;
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    return false;
-  }
-
-  private boolean jj_3R_factor_902_5_22()
- {
-    if (jj_scan_token(NUM_ENTERO)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_945_5_30()
- {
-    if (jj_scan_token(OP_NOT)) return true;
-    return false;
-  }
-
   private boolean jj_3_2()
  {
-    if (jj_3R_accesoVector_1174_3_14()) return true;
+    if (jj_3R_accesoVector_1400_3_14()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_988_5_33()
- {
-    if (jj_scan_token(OP_RESTA)) return true;
-    return false;
-  }
-
-  private boolean jj_3_1()
- {
-    if (jj_3R_llamadaFuncion_698_3_13()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_accesoVector_1174_3_14()
+  private boolean jj_3_3()
  {
     if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(CORCHETE_ABRE)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_accesoVector_1200_7_17()) {
-    jj_scanpos = xsp;
-    if (jj_3R_accesoVector_1201_11_18()) return true;
-    }
-    return false;
-  }
-
-  private boolean jj_3R_factor_935_5_29()
- {
     if (jj_scan_token(PAREN_ABRE)) return true;
     return false;
   }

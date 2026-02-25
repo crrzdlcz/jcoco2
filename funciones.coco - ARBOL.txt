@@ -18,6 +18,14 @@
 |  |  -> Token: )
 |  |  -> BloqueDeCodigo
 |  |  |  -> Token: {
+|  |  |  -> DeclaracionDeVariable
+|  |  |  |  -> Token: coco
+|  |  |  |  -> Tipo: string
+|  |  |  |  -> Token: :
+|  |  |  |  -> Token: hola
+|  |  |  |  -> Token: =
+|  |  |  |  -> Literal_CADENA_DE_CARACTERES: "Holaa desde una funcion"
+|  |  |  |  -> Token: ;
 |  |  |  -> SentenciaDeRetorno
 |  |  |  |  -> Token: return
 |  |  |  |  -> Operacion_SUM_RES_OR: +
@@ -87,6 +95,12 @@
 |  |  |  -> Token: [
 |  |  |  -> Token: 5
 |  |  |  -> Token: ]
+|  |  -> Token: ;
+|  -> SentenciasConIdentificador
+|  |  -> LlamadaFuncion
+|  |  |  -> Token: resta
+|  |  |  -> Token: (
+|  |  |  -> Token: )
 |  |  -> Token: ;
 |  -> SentenciasConIdentificador
 |  |  -> AccesoAlVEctor

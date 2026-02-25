@@ -54,8 +54,25 @@ public class Main {
             if (arbol != null) {
                 guardarArbol(arbol, rutaArchivo + " - ARBOL.txt");
             }
+            
+            guardarPila(parser.getPilaSemantica(), rutaArchivo + " - PILA.txt");
         }
     }
+  }
+  
+  
+  private static void guardarPila(coco.Pila pila, String rutaSalida) 
+  {
+      Mensaje msj = new Mensaje();
+      try (PrintStream archivoPila = new PrintStream(rutaSalida)) 
+      {
+          pila.imprimirHistorial(archivoPila);
+          msj.ok("HISTORIAL DE PILA GENERADA EN: \n  " + rutaSalida + "\n");
+      } 
+      catch (Exception e) 
+      {
+          msj.error("Error al generar archivo de pila: " + e.getMessage());
+      }
   }
 
   private static void guardarErrores(List<String> errores, String rutaSalida) {
@@ -103,5 +120,5 @@ public class Main {
       System.setOut(consolaOriginal);
       msj.error("Error al generar el árbol: " + e.getMessage());
 	}
-}
+  }
 }

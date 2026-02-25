@@ -1,0 +1,2 @@
+--- DETALLE DE ERRORES ENCONTRADOS ---
+- Error Semantico: Línea 19, columna 5 La función 'resta' no ha sido declarada.

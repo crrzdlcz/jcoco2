@@ -1,11 +1,12 @@
 --- TABLA DE SIMBOLOS ----------------------------------
 
 == global (Registros: 5) ==
-NOMBRE          | TIPO       | ÁMBITO     | LINEA
+NOMBRE          | TIPO       | ÁMBITO          | LINEA
 -----------------------------------------------------
-suma            | funcion    | global     | 1
-miVector        | vector     | bloque_13  | 17
-resultado       | int        | bloque_1   | 6
-i               | int        | bloque_13  | 22
-hola            | string     | bloque_1   | 9
+suma            | funcion    | global          | 1
+miVector        | vector     | global          | 18
+resultado       | int        | global          | 7
+i               | int        | global          | 23
+hola            | string     | global          | 10
+
 ------------------------------------ FIN TABLA ------

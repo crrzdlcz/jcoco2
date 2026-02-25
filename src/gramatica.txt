@@ -9,14 +9,24 @@ import coco.Arbol;
 import coco.Tabla;
 import coco.Simbolo;
 import coco.Colores;
+import coco.Pila;
 import java.util.List;
 
 
 public class GramaticaCoco
 {
-  private Tabla tabla = new Tabla();
+  // tABLA DE SIMBOLOS GENERADA.
+  private Tabla tabla = Tabla.getTabla();
+  private Pila pilaSemantica = new Pila();
   private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
   private int profundidadSwitch = 0; // Para accion semantica, break solo en switch. 
+
+
+  // Getter para la pila
+  public Pila getPilaSemantica()
+  {
+    return this.pilaSemantica;
+  }
 
   public static void registrarError(String msj)
   {
@@ -28,7 +38,8 @@ public class GramaticaCoco
     return listaErrores;
   }
 
-  // Para recuperarse de errores sintacticos
+
+  /*-- RECUPERACION DE ERRORES SINTACTICOS --*/
   void recuperacionSintactica() throws ParseException {
     Token t;
     while (true) {
@@ -51,7 +62,7 @@ public class GramaticaCoco
             return;
         }
         
-        // Si encontramos el inicio de otra sentencia, paramos ahí para intentar parsear esa nueva sentencia.
+        // Si encontramos el inicio de otra sentencia, paramos ahí para parsear la siguente
         if (t.kind == VAR || t.kind == IF || t.kind == BUCLE_FOR || 
             t.kind == BUCLE_WHILE || t.kind == SWITCH || t.kind == RETURN || 
             t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC) {
@@ -247,6 +258,75 @@ public class GramaticaCoco
 
   // Lista que guarda los tipos de los parametros durante el parseo.
   private java.util.List<String> tiposParametrosActuales = new java.util.ArrayList<>();
+
+
+
+	/*-- PILA SEMANTICA --*/
+  
+  // Método para operadores binarios
+  private void validarOperacionBinaria(Token op) {
+      // Si la pila está vacía, no salimos
+      if (pilaSemantica.estaVacia()) return;
+      String tipoDer = (String) pilaSemantica.pop();
+      
+      if (pilaSemantica.estaVacia()) return;
+      String tipoIzq = (String) pilaSemantica.pop();
+
+      String tipoResultado = "error";
+
+      // --- Lógica de Tipos (Aritmética, Relacional, Lógica) ---
+      
+      // Operadores Aritméticos (+, -, *, /, %)
+      if (op.kind == OP_SUMA || op.kind == OP_RESTA || op.kind == OP_MULTI || op.kind == OP_DIVI || op.kind == OP_MOD) {
+          if (tipoIzq.equals("int") && tipoDer.equals("int")) {
+              tipoResultado = "int";
+          } else if ((tipoIzq.equals("int") || tipoIzq.equals("float")) && 
+                     (tipoDer.equals("int") || tipoDer.equals("float"))) {
+              tipoResultado = "float";
+          } else if (op.kind == OP_SUMA && (tipoIzq.equals("string") || tipoDer.equals("string"))) {
+              tipoResultado = "string"; // Pa concatenacion
+          } else {
+              if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                  registrarError("Error Semántico: No se puede aplicar '" + op.image + "' entre tipos " + tipoIzq + " y " + tipoDer);
+              }
+          }
+      }
+      // Operadores Lógicos (&&, ||)
+      else if (op.kind == OP_AND || op.kind == OP_OR) {
+          if (tipoIzq.equals("bool") && tipoDer.equals("bool")) {
+              tipoResultado = "bool";
+          } else {
+              if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                  registrarError("Error Semántico: Operador '" + op.image + "' requiere operandos bool.");
+              }
+          }
+      }
+      // Operadores Relacionales (<, >, ==, etc.)
+      else if (op.kind == OP_MAYOR_QUE || op.kind == OP_MENOR_QUE || op.kind == OP_MAYOR_IGUAL || 
+               op.kind == OP_MENOR_IGUAL || op.kind == OP_IGUALDAD || op.kind == OP_DESIGUALDAD) {
+           // Comparación de números
+           if ((tipoIzq.equals("int") || tipoIzq.equals("float")) && 
+               (tipoDer.equals("int") || tipoDer.equals("float"))) {
+               tipoResultado = "bool";
+           }
+           // Comparación de strings (igualdad/desigualdad)
+           else if (tipoIzq.equals("string") && tipoDer.equals("string")) {
+               tipoResultado = "bool";
+           }
+           else {
+               if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                   registrarError("Error Semántico: No se pueden comparar tipos " + tipoIzq + " y " + tipoDer);
+               }
+           }
+      }
+    System.out.println("DEBUG Pila: Op='" + op.image + "', Izq=" + tipoIzq + ", Der=" + tipoDer + " -> Res=" + tipoResultado);
+      
+
+      // Empujar el resultado a la pila
+      pilaSemantica.push(tipoResultado);
+  }
+
+
   
   
 }
@@ -559,50 +639,69 @@ Arbol sentenciasConIdentificador() :
   Arbol llamadaFunc, accVector, exp;
   Token t_pc, t_asig, t_id;
   Simbolo simboloUsado = null;
+
+  String tipoLadoIzquierdo; 
+  String tipoLadoDerecho;
 }
 {
   LOOKAHEAD(3)
   (
     llamadaFunc = llamadaFuncion() { nodo.agregarHijo(llamadaFunc); }
     t_pc = <PUNTOYCOMA> { nodo.agregarHijo(new Arbol ("Token: " + t_pc.image)); }
-    { return nodo; }
+    {
+      if (!pilaSemantica.estaVacia())
+      {
+          pilaSemantica.pop();
+      }
+      return nodo;
+    }
   )
 
 | LOOKAHEAD(3)
+
   (
-    accVector = accesoVector() { nodo.agregarHijo(accVector); }
-	t_asig = <OP_ASIGNACION> { nodo.agregarHijo(new Arbol("Token: " + t_asig.image)); }
-	exp = expresion()
-	{
-	  // Comprobaciond de tipos      
-	  String nombreVector = accVector.getHijos().get(0).getNombreProduccion().split(": ")[1].trim();
-	  Simbolo simboloVector = tabla.buscar(nombreVector);
-
-	   if (simboloVector != null)
-	   {
-         String tipoElemento = simboloVector.tipoElemento;
-         String tipoExpresion = obtenerTipoDeArbol(exp); 
+    accVector = accesoVector() 
+    { 
+      nodo.agregarHijo(accVector); 
+      // accesoVector ya empujó (push) el tipo de los elementos del vector a la pila.
+    }
+    
+    t_asig = <OP_ASIGNACION> { nodo.agregarHijo(new Arbol("Token: " + t_asig.image)); }
+    
+    exp = expresion()
+    {
+      // La expresión empujó (push) su tipo resultado.
+      
+      // Sacamos el tipo de la expresión (lado derecho)
+      tipoLadoDerecho = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoLadoDerecho = (String) pilaSemantica.pop();
+      }
+      
+      // Sacamos el tipo del vector (lado izquierdo, empujado por accesoVector)
+      tipoLadoIzquierdo = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoLadoIzquierdo = (String) pilaSemantica.pop();
+      }
+      
+      // Validación de Tipos
+      if (!tipoLadoDerecho.equals("error") && !tipoLadoIzquierdo.equals("error"))
+      {
+         boolean esCompatible = tipoLadoIzquierdo.equals(tipoLadoDerecho) || 
+                              (tipoLadoIzquierdo.equals("float") && tipoLadoDerecho.equals("int"));
         
-         if (!tipoExpresion.equals("error"))
+         if (!esCompatible)
          {
-          
-            boolean esCompatible = tipoElemento.equals(tipoExpresion) || 
-                                 (tipoElemento.equals("float") && tipoExpresion.equals("int"));
-          
-           if (!esCompatible)
-           {
-            registrarError("Error Semántico: Línea " + t_asig.beginLine + ". No se puede asignar tipo '" + tipoExpresion + 
-                           "' al vector '" + nombreVector + "' que es de tipo '" + tipoElemento + "'.");
-           }
+           registrarError("Error Semántico: Línea " + t_asig.beginLine + ". No se puede asignar tipo '" + tipoLadoDerecho + 
+                          "' al vector que es de tipo '" + tipoLadoIzquierdo + "'.");
          }
-       }
-       // -- Fin comprobaciond de tipos  
-	  
-	  nodo.agregarHijo(exp);
-	}
-	t_pc = <PUNTOYCOMA> { nodo.agregarHijo(new Arbol("Token: " + t_pc.image)); }
-
-	{ return nodo; }
+      }
+      
+      nodo.agregarHijo(exp);
+    }
+    
+    t_pc = <PUNTOYCOMA> { nodo.agregarHijo(new Arbol("Token: " + t_pc.image)); }
+    { return nodo; }
   )
   
 | (
@@ -615,6 +714,11 @@ Arbol sentenciasConIdentificador() :
         {
           registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn +
           " La variable '" + t_id.image + "' no ha sido declarada.");
+          tipoLadoIzquierdo = "error";
+        }
+        else
+        {
+          tipoLadoIzquierdo = simboloUsado.tipo; 
         }
     }
   	  	
@@ -622,34 +726,33 @@ Arbol sentenciasConIdentificador() :
 
   	exp = expresion()
   	{
-  	  if (simboloUsado != null)
-  	  {
-  	    String tipoVariable = simboloUsado.tipo;
-  	    String tipoExpresion = obtenerTipoDeArbol(exp);
+      // La expresión empujó (push) su tipo resultado.
+      
+      // Sacamos el tipo de la expresión (lado derecho)
+      tipoLadoDerecho = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoLadoDerecho = (String) pilaSemantica.pop();
+      }
 
-  	    if (tipoExpresion == null) tipoExpresion = "error";
-  	    
+      // Validación de Tipos usando la variable local tipoLadoIzquierdo
+      if (!tipoLadoDerecho.equals("error") && !tipoLadoIzquierdo.equals("error"))
+      {
+        if (!tipoLadoIzquierdo.equals(tipoLadoDerecho))
+        {
+          boolean esCompatible = (tipoLadoIzquierdo.equals("float") && tipoLadoDerecho.equals("int"));
 
-  	    if (!tipoExpresion.equals("error"))
-  	    {
-  	      if (!tipoVariable.equals(tipoExpresion))
+          if (!esCompatible) 
           {
-            boolean esCompatible = (tipoVariable.equals("float") && tipoExpresion.equals("int"));
+            registrarError("Error Semántico: Línea " + t_id.beginLine + ". Tipos incompatibles. No se puede asignar '" + tipoLadoDerecho + "' a variable de tipo '" + tipoLadoIzquierdo + "'");
+          }
+        }  
+      } 
+      
+      nodo.agregarHijo(exp); 
+    }
 
-            if (!esCompatible) 
-            {
-              registrarError("Error Semántico: Línea " + t_id.beginLine + ". Tipos incompatibles. No se puede asignar '" + tipoExpresion + "' a variable de tipo '" + tipoVariable + "'");
-            }
-          }  
-        } 
-     }
-  	 nodo.agregarHijo(exp); 
-
-  	}
-
-  	t_pc = <PUNTOYCOMA> { nodo.agregarHijo(new Arbol("Token: " + t_pc.image)); }
-
-  	{ return nodo; }
+    t_pc = <PUNTOYCOMA> { nodo.agregarHijo(new Arbol("Token: " + t_pc.image)); }
+    { return nodo; }
   )
 }
 
@@ -666,9 +769,14 @@ Arbol sentenciaRetorno() :
 
   // Validacion de tipos:
   {
+    String tipoExp = "error";
+  if (!pilaSemantica.estaVacia())
+  {
+      tipoExp = (String) pilaSemantica.pop(); 
+  }
     if (tipoRetornoFuncionActual != null )
     {
-      String tipoExp = obtenerTipoDeArbol(exp);
+      //String tipoExp = obtenerTipoDeArbol(exp);
 
       boolean esCompatible = tipoExp.equals(tipoRetornoFuncionActual) || (tipoRetornoFuncionActual.equals("float") && tipoExp.equals("int"));
 
@@ -693,13 +801,17 @@ Arbol llamadaFuncion() :
   Token t_id, t_pa, t_pc, t_coma;
   java.util.List<String> tiposArgumentos = new java.util.ArrayList<>();
   
+  // Variables para validación y pila
+  Simbolo simbolo = null; 
+  String tipoRetorno = "error";
+  String tipoArg = "error"; 
 }
 {
   t_id = <ID>
   {
     nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_id.image));
 
-    Simbolo simbolo = tabla.buscar(t_id.image);
+    simbolo = tabla.buscar(t_id.image);
     if (simbolo == null)
     {
       registrarError("Error Semantico: Línea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " La función '" + t_id.image + "' no ha sido declarada.");
@@ -708,55 +820,70 @@ Arbol llamadaFuncion() :
     {
       registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image
       + "' no es una función (es de tipo '" + simbolo.tipo + "').");
-      simbolo = null; // Pa no validar cosas que no sean de una funcion.
+      simbolo = null; // Invalidamos para no validar argumentos abajo
     }
-    
+    else
+    {
+      // Si existe y es función, guardamos su tipo de retorno
+      tipoRetorno = (simbolo.tipoRetorno != null) ? simbolo.tipoRetorno : "error";
+    }
   }
+  
   t_pa = <PAREN_ABRE> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pa.image)); }
 
   (
     exp = expresion()
     {
       nodoLlamadaFuncion.agregarHijo(exp);
-      // Pa validacion de argumentos en una funcion. - > se guarda el tipo de argumento actual...
-      tiposArgumentos.add(obtenerTipoDeArbol(exp)); 
+      
+      // 1. POP: Sacamos el tipo que la expresión dejó en la pila
+      tipoArg = "error";
+      if (!pilaSemantica.estaVacia()) {
+          tipoArg = (String) pilaSemantica.pop();
+      }
+      
+      // 2. Guardamos ese tipo en la lista para validar contra los parámetros
+      tiposArgumentos.add(tipoArg); 
     }
-  	(
-  	  t_coma = <COMA> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_coma.image)); }
-  	  	  	
-  	  exp = expresion()
-  	  {
-  	    nodoLlamadaFuncion.agregarHijo(exp);
-  	    // Obtener el tipo del argumento desde el arbol
-  	    tiposArgumentos.add(obtenerTipoDeArbol(exp));
-  	  }
-  	)*
+    (
+      t_coma = <COMA> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_coma.image)); }
+      
+      exp = expresion()
+      {
+        nodoLlamadaFuncion.agregarHijo(exp);
+        
+        // Repetimos la lógica para los siguientes argumentos
+        tipoArg = "error";
+        if (!pilaSemantica.estaVacia()) {
+            tipoArg = (String) pilaSemantica.pop();
+        }
+        tiposArgumentos.add(tipoArg);
+      }
+    )*
   )?
 
   t_pc = <PAREN_CIERRA> { nodoLlamadaFuncion.agregarHijo(new Arbol ("Token: " + t_pc.image)); }
 
-
-  /*-- VALIDACION DE LOS ARGUMENTOS --*/
+  /*-- VALIDACIÓN DE LOS ARGUMENTOS --*/
   {
     if (simbolo != null)
     {
       int numEsperados = simbolo.parametros.size();
       int numActuales = tiposArgumentos.size();
 
-      // Validar cantidad de argumentos
       if (numActuales != numEsperados)
       {
         registrarError("Error Semantico: Línea " + t_id.beginLine + ". La función '" + t_id.image +
         "' espera " + numEsperados + " argumentos, pero se encontraron " + numActuales + ".");
-      } else
+      } 
+      else
       {
-            // Validamos los  tipos uno por uno.
+        // Validamos tipos uno por uno
         for (int i = 0; i < numActuales; i++)
         {
           String tipoEsp = simbolo.parametros.get(i);
           String tipoAct = tiposArgumentos.get(i);
                 
-          // Deben ser del  mismo tipo // tmb int->float
           boolean compatible = tipoEsp.equals(tipoAct) || (tipoEsp.equals("float") && tipoAct.equals("int"));
 
           if (!compatible && !tipoAct.equals("error"))
@@ -768,12 +895,14 @@ Arbol llamadaFuncion() :
       }
     }
   }
-
   // ---------------------------------------- //
-  
-  { return nodoLlamadaFuncion; }
-}
 
+  // *** PUSH DEL TIPO DE RETORNO ***
+  {
+     pilaSemantica.push(tipoRetorno);
+     return nodoLlamadaFuncion;
+  }
+}
 /*-- Las operacionen utilizan la precedencia de operadores --*/
 // Expresiones de menor orden (+, -, ||)
 Arbol expresion() :
@@ -790,6 +919,8 @@ Arbol expresion() :
 
     derecha = expresionRelacional()
     {
+      // Accion sematica obt tipos, validar y empujar
+      validarOperacionBinaria(op);
       // Nodo para las operaciones.
       // Nuevo padre.
       Arbol nodoOperacion = new Arbol("Operacion_SUM_RES_OR: " + op.image);
@@ -832,6 +963,10 @@ Arbol expresionRelacional() :
     // Segundo termino (derecha);
     derecha = termino()
     {
+
+	  // Pila
+	  validarOperacionBinaria(op);
+      
       // Nuevo nodo padre (operacion).
       Arbol nodoOperacion = new Arbol("Operador_Relacional" +  op.image);
 
@@ -870,6 +1005,10 @@ Arbol termino() :
     )
     derecha = factor()
     {
+      //Pila 
+      validarOperacionBinaria(op);
+
+      
 	  // Nuevo nodo
 	  Arbol nodoOperacion = new Arbol("Operacion_MUL_DIV_MOD_AND: " + op.image);
        	   	
@@ -899,38 +1038,56 @@ Arbol factor() :
   Token parA, parC; // Pal parentesis
 }
 {
-    t = <NUM_ENTERO> { return new Arbol("Literal_INT: " + t.image); }
-  | t = <NUM_FLOTANTE> { return new Arbol("Literal_FLOAT: " + t.image); }
-  | t = <STR> { return new Arbol("Literal_CADENA_DE_CARACTERES: " + t.image); }
-  | t = <TRUE> { return new Arbol("Literal_BOOL: true"); }
-  | t = <FALSE> { return new Arbol("Literal_BOOL: false"); }
+    t = <NUM_ENTERO>
+    {
+      pilaSemantica.push("int"); // Push entero
+      return new Arbol("Literal_INT: " + t.image);
+    }
+  | t = <NUM_FLOTANTE>
+  	{
+  	  pilaSemantica.push("float"); // Push flotante
+  	  return new Arbol("Literal_FLOAT: " + t.image);
+  	}
+  | t = <STR>
+    {
+      pilaSemantica.push("string"); // Push string
+      return new Arbol("Literal_CADENA_DE_CARACTERES: " + t.image);
+    }
+  | t = <TRUE>
+    {
+      pilaSemantica.push("bool"); // Push bool
+      return new Arbol("Literal_BOOL: true");
+    }
+  | t = <FALSE>
+    {
+      pilaSemantica.push("bool"); // Push bool
+      return new Arbol("Literal_BOOL: false");
+    }
   | LOOKAHEAD(<ID> <PAREN_ABRE>)
   	nodo = llamadaFuncion()
   	{
   	  return nodo;
   	} 
   | t = <ID>
-  {
-    Simbolo simboloUsado = tabla.buscar(t.image);
-    if (simboloUsado == null)
     {
-      // Error por ambitos !S
-      /*System.err.println("Error Semantico ??? [:v] Línea: " + t.beginLine + " La variable o función '" 
-        + t.image + "' no ha sido declarada.");*/
-
-		registrarError("Error Semantico: Línea " + t.beginLine + ", columna " + t.beginColumn + " La variable o funcion '" + t.image + "' no ha sido declarada.");
+      Simbolo simboloUsado = tabla.buscar(t.image);
+      String tipo = "error"; // Default error
+      
+      if (simboloUsado == null)
+      {
+        registrarError("Error Semantico: Línea " + t.beginLine + ", columna " + t.beginColumn + " La variable '" + t.image + "' no ha sido declarada.");
+      } 
+      else if (simboloUsado.tipo.equals("funcion"))
+      {
+         registrarError("Error Semantico: Línea " + t.beginLine + " La función '" + t.image + "' debe llamarse con ().");
+      }
+      else {
+         tipo = simboloUsado.tipo;
+      }
+      
+      pilaSemantica.push(tipo); // PUSH tipo de la variable
+      return new Arbol("Literal_IDENTIFICADOR: " + t.image);
     }
-    /**/
-	Simbolo simbolo = tabla.buscar(t.image);
-	if (simbolo != null && simbolo.tipo.equals("funcion"))
-	{
-   	  //System.err.println(Colores.ROJO + "Error: '" + t.image + "' es una función, debe llamarse con ()");
-   	  //registrarError("Error: Línea " + t.beginLine + " La funcion'" + t.image + "' no ha sido declarada.");
-   	  registrarError("Error Semantico: Línea " + t.beginLine + ", columna " + t.beginColumn + " La función '" + t.image + "' no puede usarse como variable (falta llamar con '()').");
-	}
-
-    return new Arbol("Literal_IDENTIFICADOR: " + t.image);
-  }
   // Para identificadores (hojas del arbol)  
   | parA = <PAREN_ABRE> nodo = expresion() parC = <PAREN_CIERRA>
   {
@@ -944,6 +1101,17 @@ Arbol factor() :
   // Para los operadores unarios.
   | t = <OP_NOT> nodo = factor()
   {
+    String tipoHijo = (String) pilaSemantica.pop();
+
+	// Pa la pila
+	if (!tipoHijo.equals("bool") && !tipoHijo.equals("error"))
+	{
+        registrarError("Error Semántico: El operador '!' requiere bool, se encontró " + tipoHijo);
+        pilaSemantica.push("error");
+    } else {
+        pilaSemantica.push("bool"); // Bool
+    }
+    
     Arbol nodoUnario = new Arbol("Unario_NOT");
     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
     nodoUnario.agregarHijo(nodo); 
@@ -952,6 +1120,21 @@ Arbol factor() :
     
   | t = <OP_INCREMENTO> nodo = factor()
    {
+
+	// Pa la pila
+    String tipoHijo = (String) pilaSemantica.pop(); // Pila
+    
+    if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+    {
+    	registrarError("Error Semántico: El operador '++' requiere numérico.");
+        pilaSemantica.push("error");
+    }
+    else
+    {
+    	pilaSemantica.push(tipoHijo); // Mantiene el tipo (int++ sigue siendo int)
+    }
+	// Fin pila
+     
      Arbol nodoUnario = new Arbol("Unario_INC");
      nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
      nodoUnario.agregarHijo(nodo); 
@@ -969,6 +1152,21 @@ Arbol factor() :
    
   | t = <OP_DECREMENTO> nodo = factor()
    {
+
+	 // Pila
+     String tipoHijo = (String) pilaSemantica.pop();
+     
+     if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+     {
+         registrarError("Error Semántico: El operador '--' requiere numérico.");
+         pilaSemantica.push("error");
+     }
+     else
+     {
+         pilaSemantica.push(tipoHijo);
+     }
+     // Fin pila.
+     
      Arbol nodoUnario = new Arbol("Unario_DEC");
      nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
      nodoUnario.agregarHijo(nodo);
@@ -987,6 +1185,21 @@ Arbol factor() :
     
   | t = <OP_RESTA> nodo = factor()
   {
+
+	// Pila
+	String tipoHijo = (String) pilaSemantica.pop();
+    // Validar numérico
+    if (!tipoHijo.equals("int") && !tipoHijo.equals("float") && !tipoHijo.equals("error"))
+    {
+      registrarError("Error Semántico: El operador '-' unario requiere numérico.");
+      pilaSemantica.push("error");
+    }
+    else
+    {
+      pilaSemantica.push(tipoHijo);
+    }
+     // Fin pila
+    
     Arbol nodoUnario = new Arbol("Unario_RESTA");
     nodoUnario.agregarHijo(new Arbol("Token: " + t.image));
     nodoUnario.agregarHijo(nodo);
@@ -1025,8 +1238,12 @@ Arbol declaracionDeVariable() :
       exp = expresion()
       {
         nodoDeclaracion.agregarHijo(exp);
-        // Checar que coincida el tipo de dato con lo que se va asignar.
-        String tipoExpr = obtenerTipoDeArbol(exp);
+        // Checar que coincida el tipo de dato con lo que se va asignar.**
+        String tipoExpr = "error";
+        if (!pilaSemantica.estaVacia())
+        {
+          tipoExpr = (String) pilaSemantica.pop();
+        }        
         
         if (!tipoExpr.equals("error"))
         {
@@ -1057,7 +1274,15 @@ Arbol salida() :
 {
   t_salida = <SALIDA> { nodoSalida.agregarHijo(new Arbol("Token: " + t_salida.image)); }
   t_pa = <PAREN_ABRE>	{ nodoSalida.agregarHijo(new Arbol("Token: " + t_pa.image)); }
-  ( exp = expresion() { nodoSalida.agregarHijo(exp); } )
+  
+  (
+     exp = expresion()
+  {
+    nodoSalida.agregarHijo(exp);
+    if (!pilaSemantica.estaVacia()) pilaSemantica.pop(); 
+  }
+  )
+  
   t_pc = <PAREN_CIERRA> { nodoSalida.agregarHijo(new Arbol("Token: " + t_pc.image)); }
   t_pyc = <PUNTOYCOMA> { nodoSalida.agregarHijo(new Arbol("Token: " + t_pyc.image)); }
 
@@ -1084,6 +1309,7 @@ Arbol entrada() :
         //  La función accesoVector() ya se encarga de verificar 
         // si el vector existe y si el índice es válido.
         // **********
+        if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
       }
 
     |
@@ -1181,6 +1407,7 @@ Arbol accesoVector() :
         + "' no ha sido declarado.");*/
 
 	  registrarError("Error Semantico: Línea " + t_id.beginLine +  ", columna " + t_id.beginColumn + " El vector '" + t_id.image + "' no ha sido declarado.");
+	  pilaSemantica.push("error"); 
 	  
     }
     else if (!"vector".equals(simboloVector.tipo))
@@ -1189,6 +1416,11 @@ Arbol accesoVector() :
         + "' no es un vector.");*/
 
       registrarError("Error Semantico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn + " El identificador '" + t_id.image + "' no es un vector.");
+      pilaSemantica.push("error"); 
+    }
+    else
+    {
+      pilaSemantica.push(simboloVector.tipoElemento);
     }
   }
   	
@@ -1242,7 +1474,14 @@ Arbol bucleFor() :
   )
   
   t_pyc1 = <PUNTOYCOMA> { nodoBucleFor.agregarHijo(new Arbol("Token: " + t_pyc1.image)); }
-  ( condicion = expresion() { nodoBucleFor.agregarHijo(condicion); } )?
+
+  ( 
+    condicion = expresion() 
+    { 
+        nodoBucleFor.agregarHijo(condicion); 
+        if (!pilaSemantica.estaVacia()) pilaSemantica.pop(); // <--- Agregar POP
+    } 
+  )?
 
   t_pyc2 = <PUNTOYCOMA> { nodoBucleFor.agregarHijo(new Arbol("Token: " + t_pyc2.image)); }
 
@@ -1290,7 +1529,10 @@ Arbol asignacionSinPuntoYComa() :
     t_asig = <OP_ASIGNACION> { nodoAsignacion.agregarHijo(new Arbol("Token: " + t_asig.image)); }
 
         exp = expresion()
-        { nodoAsignacion.agregarHijo(exp); }
+        {
+          nodoAsignacion.agregarHijo(exp);
+          if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
+        }
         { return nodoAsignacion; }
   )  
   | 
@@ -1301,8 +1543,12 @@ Arbol asignacionSinPuntoYComa() :
 
     exp = expresion()
     
-    { nodoAsignacion.agregarHijo(exp); }
-    { return nodoAsignacion; } 
+    {
+      nodoAsignacion.agregarHijo(exp);
+      if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
+      if (!pilaSemantica.estaVacia()) pilaSemantica.pop();
+      return nodoAsignacion;
+    }
   )
 }
 
@@ -1342,10 +1588,17 @@ Arbol bucleWhile() :
 
   // Comprobacion de tipo bool en la expresion que va entre parentesis.
   {
-    String tipoCond = obtenerTipoDeArbol(condicion);
+
+    String tipoCond = "error";
+
+	if (!pilaSemantica.estaVacia())
+	{
+      tipoCond = (String) pilaSemantica.pop();
+  	}
+	
     if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
-      registrarError("Error Semantico: La condicion del bucle while debe ser del tipo 'bool', se encontró '" + tipoCond + "´.");
+      registrarError("Error Semantico: La condicion del bucle while debe ser del tipo 'bool', se encontró '" + tipoCond + "'.");
     }
   }
     
@@ -1377,11 +1630,16 @@ Arbol condicionalIf() :
 
   // Comprobacion de tipo bool en la expresion que va entre parentesis.
   {
-    String tipoCond = obtenerTipoDeArbol(condicion);
+    String tipoCond = "error";
+    if (!pilaSemantica.estaVacia())
+    {
+        tipoCond = (String) pilaSemantica.pop();
+    }
+
     if (!tipoCond.equals("bool") && !tipoCond.equals("error"))
     {
-      registrarError("Error Semantico: Linea " + t_pa.beginLine + ", columna" + t_pa.beginLine +
-      "La condicion del if debe ser del tipo 'bool', se encontró '" + tipoCond + "'.");
+      registrarError("Error Semantico: Linea " + t_pa.beginLine + ", columna" + t_pa.beginColumn +
+      " La condicion del if debe ser del tipo 'bool', se encontró '" + tipoCond + "'.");
     }
   }
     
@@ -1424,7 +1682,12 @@ Arbol condicionalSwitch() :
   expresionControl = expresion()
   {
     nodoSwitch.agregarHijo(expresionControl);
-    tipoControl = obtenerTipoDeArbol(expresionControl); // Obtenemos el tipo
+    
+    tipoControl = "error";
+    if (!pilaSemantica.estaVacia())
+    {
+        tipoControl = (String) pilaSemantica.pop();
+    }
   }
     
   t_pc = <PAREN_CIERRA> { nodoSwitch.agregarHijo(new Arbol("Token: " + t_pc.image)); }
