@@ -314,7 +314,7 @@ public class GramaticaCoco implements GramaticaCocoConstants {
                }
            }
       }
-    System.out.println("DEBUG Pila: Op='" + op.image + "', Izq=" + tipoIzq + ", Der=" + tipoDer + " -> Res=" + tipoResultado);
+    System.out.println( Colores.MORADO + "#DEBUG Pila: Op='" + op.image + "', Izq=" + tipoIzq + ", Der=" + tipoDer + " -> Res=" + tipoResultado);
 
 
       // Empujar el resultado a la pila

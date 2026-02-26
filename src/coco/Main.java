@@ -42,24 +42,55 @@ public class Main {
             List<String> errores = parser.getListaErrores();
             
             if (errores.isEmpty()) {
-                msj.ok("ANÁLISIS COMPLETADO: 0 errores detectados.");
+            	System.out.println("");
+                msj.ok("ANÁLISIS COMPLETADO EXITOSAMENTE.\n");
             } else {
-                msj.adv("ANÁLISIS FINALIZADO: Se encontraron " + errores.size() + " errores.");
+            	System.out.println("");
+                msj.error( Colores.UNDERLINE + "ANÁLISIS FINALIZADO: Se encontraron errores (#" + 
+                		errores.size() + ").\n" + Colores.RESET );
                 
                 guardarErrores(errores, rutaArchivo + " - ERRORES.txt");
             }
 
             guardarTabla(Tabla.getTabla(), rutaArchivo + " - SIMBOLOS.txt");
+            guardarPila(parser.getPilaSemantica(), rutaArchivo + " - PILA.txt");
             
             if (arbol != null) {
                 guardarArbol(arbol, rutaArchivo + " - ARBOL.txt");
+                guardarTAC(arbol, rutaArchivo + " - TAC.txt");
             }
             
-            guardarPila(parser.getPilaSemantica(), rutaArchivo + " - PILA.txt");
+            
+            
+            
         }
     }
   }
   
+  
+  private static void guardarTAC(Arbol arbol, String rutaSalida) 
+  {
+    Mensaje msj = new Mensaje();
+    if (arbol == null) return;
+
+    try (PrintStream archivoTAC = new PrintStream(rutaSalida)) 
+    {
+        GeneradorTAC gen = new GeneradorTAC();
+        gen.generar(arbol); // Recorre el árbol y llena la lista de instrucciones
+        
+        archivoTAC.println("--- CODIGO INTERMEDIO (TAC) ---");
+        
+        for (Instruccion inst : gen.getCodigo()) {
+            archivoTAC.println(inst.toString());
+        }
+        
+        msj.ok("CÓDIGO INTERMEDIO GENERADO EN: \n  " + rutaSalida + "\n");
+    } 
+    catch (Exception e) 
+    {
+        msj.error("Error al generar código intermedio: " + e.getMessage());
+    }
+  }
   
   private static void guardarPila(coco.Pila pila, String rutaSalida) 
   {
