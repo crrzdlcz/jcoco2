@@ -1,0 +1,21 @@
+--- CODIGO INTERMEDIO (TAC) ---
+suma:
+hola = "Holaa desde una funcion"
+t1 = a + b
+return t1
+param 5
+param 10
+t2 = call suma, 2
+resultado = t2
+hola = "Hola"
+t3 = resultado == 5
+if_false t3 goto L1
+print "La suma es igual a 20"
+goto L2
+L1:
+print "El resultado de la suma no es 20"
+L2:
+miVector[0] = 5
+miVector[1] = 20
+i = 2
+miVector[i] = 30

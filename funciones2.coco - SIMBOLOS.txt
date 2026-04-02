@@ -1,0 +1,12 @@
+--- TABLA DE SIMBOLOS ----------------------------------
+
+== global (Registros: 5) ==
+NOMBRE          | TIPO       | ÁMBITO          | LINEA
+-----------------------------------------------------
+suma            | funcion    | global          | 1
+miVector        | vector     | global          | 18
+resultado       | int        | global          | 7
+i               | int        | global          | 23
+hola            | string     | global          | 10
+
+------------------------------------ FIN TABLA ------

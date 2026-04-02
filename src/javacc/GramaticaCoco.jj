@@ -19,7 +19,7 @@ public class GramaticaCoco
   private Tabla tabla = Tabla.getTabla();
   private Pila pilaSemantica = new Pila();
   private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
-  private int profundidadSwitch = 0; // Para accion semantica, break solo en switch. 
+  private int profundidadSwitch = 0; // semantica, break solo en switch. 
 
 
   // Getter para la pila
@@ -44,32 +44,40 @@ public class GramaticaCoco
     Token t;
     while (true) {
         t = getToken(1);
-        if (t.kind == EOF) break; // Si es fin de archivo, parar
+        if (t.kind == EOF) break; 
 
-        // Si encontramos un punto y coma, lo consumimos y salimos
+        // 1. Si encontramos punto y coma, consumimos y salimos.
         if (t.kind == PUNTOYCOMA) {
             consumeToken(PUNTOYCOMA);
             return;
         }
         
-        // Si encontramos una llave de cierre, NO la consumimos (pertenece al bloque padre)
-        // pero salimos para que el bloque padre se encargue.
+        // 2. Si encontramos llave de cierre '}' o FINAL, NO la consumimos.
         if (t.kind == LLAVE_CIERRA || t.kind == FINAL) {
             return;
         }
 
-          if (t.kind == ELSE) {
-            return;
+        // Si encontramos una llave de apertura '{'
+        if (t.kind == LLAVE_ABRE) {
+            consumeToken(LLAVE_ABRE);
+            int profundidad = 1;
+            while (profundidad > 0 && getToken(1).kind != EOF) {
+                Token sig = getToken(1);
+                if (sig.kind == LLAVE_ABRE) profundidad++;
+                else if (sig.kind == LLAVE_CIERRA) profundidad--;
+                consumeToken(sig.kind);
+            }
+            return; 
         }
-        
-        // Si encontramos el inicio de otra sentencia, paramos ahí para parsear la siguente
+
         if (t.kind == VAR || t.kind == IF || t.kind == BUCLE_FOR || 
             t.kind == BUCLE_WHILE || t.kind == SWITCH || t.kind == RETURN || 
-            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC) {
+            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC ||
+            t.kind == ENTERO || t.kind == FLOTANTE || t.kind == BOOLEANO || 
+            t.kind == CHAR || t.kind == STRING) {
             return;
         }
         
-        // Si no es nada anterior, detodas maneras se consume para seguir avanzando
         consumeToken(t.kind);
     }
   }
@@ -77,7 +85,6 @@ public class GramaticaCoco
   void consumeToken(int kind) throws ParseException {
     jj_consume_token(kind);
   }
-
 
 
   /*-- METODOS PARA COMPROBAR TIPODS --*/

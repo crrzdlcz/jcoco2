@@ -4,24 +4,24 @@ fn suma -> int (int: a, int: b) {
 }
 
 _inicio
-    coco int: resultado;
+    coco inte: resultado;
     resultado = suma(5, 10);
 
     coco string: hola = "Hola"; // Cambialo por 5 XDXDXDXDXDXD
 
-    if (resultado == 5 ) {
-       print!("La suma es igual a 20");
-    } else {
+    iff (resultado == 5 ) {
+       print!("La suma es igual a 20";
+    } elses {
         print!("El resultado de la suma no es 20" );
     }
 
-    int miVector[5];
+    int miVector[5;
     resta();
     miVector[0] = 5;
     miVector[1] = 20;
 
     coco int : i;
-    i = 2;
+    i = 2
     miVector[i] = 30;
 
 final_

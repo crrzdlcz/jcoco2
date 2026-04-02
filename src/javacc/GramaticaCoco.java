@@ -14,7 +14,7 @@ public class GramaticaCoco implements GramaticaCocoConstants {
   private Tabla tabla = Tabla.getTabla();
   private Pila pilaSemantica = new Pila();
   private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
-  private int profundidadSwitch = 0; // Para accion semantica, break solo en switch. 
+  private int profundidadSwitch = 0; // semantica, break solo en switch. 
 
 
   // Getter para la pila
@@ -39,32 +39,40 @@ public class GramaticaCoco implements GramaticaCocoConstants {
     Token t;
     while (true) {
         t = getToken(1);
-        if (t.kind == EOF) break; // Si es fin de archivo, parar
+        if (t.kind == EOF) break;
 
-        // Si encontramos un punto y coma, lo consumimos y salimos
+        // 1. Si encontramos punto y coma, consumimos y salimos.
         if (t.kind == PUNTOYCOMA) {
             consumeToken(PUNTOYCOMA);
             return;
         }
 
-        // Si encontramos una llave de cierre, NO la consumimos (pertenece al bloque padre)
-        // pero salimos para que el bloque padre se encargue.
+        // 2. Si encontramos llave de cierre '}' o FINAL, NO la consumimos.
         if (t.kind == LLAVE_CIERRA || t.kind == FINAL) {
             return;
         }
 
-          if (t.kind == ELSE) {
+        // Si encontramos una llave de apertura '{'
+        if (t.kind == LLAVE_ABRE) {
+            consumeToken(LLAVE_ABRE);
+            int profundidad = 1;
+            while (profundidad > 0 && getToken(1).kind != EOF) {
+                Token sig = getToken(1);
+                if (sig.kind == LLAVE_ABRE) profundidad++;
+                else if (sig.kind == LLAVE_CIERRA) profundidad--;
+                consumeToken(sig.kind);
+            }
             return;
         }
 
-        // Si encontramos el inicio de otra sentencia, paramos ahí para parsear la siguente
         if (t.kind == VAR || t.kind == IF || t.kind == BUCLE_FOR ||
             t.kind == BUCLE_WHILE || t.kind == SWITCH || t.kind == RETURN ||
-            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC) {
+            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC ||
+            t.kind == ENTERO || t.kind == FLOTANTE || t.kind == BOOLEANO ||
+            t.kind == CHAR || t.kind == STRING) {
             return;
         }
 
-        // Si no es nada anterior, detodas maneras se consume para seguir avanzando
         consumeToken(t.kind);
     }
   }
@@ -72,7 +80,6 @@ public class GramaticaCoco implements GramaticaCocoConstants {
   void consumeToken(int kind) throws ParseException {
     jj_consume_token(kind);
   }
-
 
 
   /*-- METODOS PARA COMPROBAR TIPODS --*/
@@ -2007,82 +2014,57 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     finally { jj_save(4, xla); }
   }
 
-  private boolean jj_3R_factor_1121_5_31()
- {
-    if (jj_scan_token(OP_INCREMENTO)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_1071_5_28()
- {
-    if (jj_scan_token(ID)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_llamadaFuncion_835_5_16()
- {
-    if (jj_3R_expresion_915_3_15()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_accesoVector_1400_3_14()
- {
-    if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(CORCHETE_ABRE)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_accesoVector_1432_7_17()) {
-    jj_scanpos = xsp;
-    if (jj_3R_accesoVector_1433_11_18()) return true;
-    }
-    return false;
-  }
-
   private boolean jj_3_1()
  {
-    if (jj_3R_llamadaFuncion_810_3_13()) return true;
+    if (jj_3R_llamadaFuncion_817_3_13()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1066_5_27()
+  private boolean jj_3R_factor_1073_5_27()
  {
-    if (jj_3R_llamadaFuncion_810_3_13()) return true;
+    if (jj_3R_llamadaFuncion_817_3_13()) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1433_11_18()
+  private boolean jj_3R_accesoVector_1440_11_18()
  {
     if (jj_scan_token(ID)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1061_5_26()
+  private boolean jj_3R_factor_1068_5_26()
  {
     if (jj_scan_token(FALSE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1153_5_32()
+  private boolean jj_3R_factor_1160_5_32()
  {
     if (jj_scan_token(OP_DECREMENTO)) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1432_7_17()
+  private boolean jj_3R_accesoVector_1439_7_17()
  {
     if (jj_scan_token(NUM_ENTERO)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1056_5_25()
+  private boolean jj_3R_factor_1063_5_25()
  {
     if (jj_scan_token(TRUE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1102_5_30()
+  private boolean jj_3R_factor_1109_5_30()
  {
     if (jj_scan_token(OP_NOT)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_expresion_922_3_15()
+ {
+    if (jj_3R_expresionRelacional_960_3_19()) return true;
     return false;
   }
 
@@ -2090,90 +2072,84 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
  {
     if (jj_scan_token(ID)) return true;
     if (jj_scan_token(OP_ASIGNACION)) return true;
-    if (jj_3R_expresion_915_3_15()) return true;
+    if (jj_3R_expresion_922_3_15()) return true;
     return false;
   }
 
-  private boolean jj_3R_expresion_915_3_15()
- {
-    if (jj_3R_expresionRelacional_953_3_19()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_1051_5_24()
+  private boolean jj_3R_factor_1058_5_24()
  {
     if (jj_scan_token(STR)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1046_5_23()
+  private boolean jj_3R_factor_1053_5_23()
  {
     if (jj_scan_token(NUM_FLOTANTE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1186_5_33()
+  private boolean jj_3R_factor_1193_5_33()
  {
     if (jj_scan_token(OP_RESTA)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1092_5_29()
+  private boolean jj_3R_factor_1099_5_29()
  {
     if (jj_scan_token(PAREN_ABRE)) return true;
     return false;
   }
 
-  private boolean jj_3R_expresionRelacional_953_3_19()
+  private boolean jj_3R_expresionRelacional_960_3_19()
  {
-    if (jj_3R_termino_998_3_20()) return true;
+    if (jj_3R_termino_1005_3_20()) return true;
     return false;
   }
 
-  private boolean jj_3R_llamadaFuncion_810_3_13()
+  private boolean jj_3R_llamadaFuncion_817_3_13()
  {
     if (jj_scan_token(ID)) return true;
     if (jj_scan_token(PAREN_ABRE)) return true;
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_llamadaFuncion_835_5_16()) jj_scanpos = xsp;
+    if (jj_3R_llamadaFuncion_842_5_16()) jj_scanpos = xsp;
     if (jj_scan_token(PAREN_CIERRA)) return true;
     return false;
   }
 
-  private boolean jj_3R_termino_998_3_20()
+  private boolean jj_3R_termino_1005_3_20()
  {
-    if (jj_3R_factor_1041_5_21()) return true;
+    if (jj_3R_factor_1048_5_21()) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1041_5_21()
+  private boolean jj_3R_factor_1048_5_21()
  {
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_factor_1041_5_22()) {
+    if (jj_3R_factor_1048_5_22()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1046_5_23()) {
+    if (jj_3R_factor_1053_5_23()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1051_5_24()) {
+    if (jj_3R_factor_1058_5_24()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1056_5_25()) {
+    if (jj_3R_factor_1063_5_25()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1061_5_26()) {
+    if (jj_3R_factor_1068_5_26()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1066_5_27()) {
+    if (jj_3R_factor_1073_5_27()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1071_5_28()) {
+    if (jj_3R_factor_1078_5_28()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1092_5_29()) {
+    if (jj_3R_factor_1099_5_29()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1102_5_30()) {
+    if (jj_3R_factor_1109_5_30()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1121_5_31()) {
+    if (jj_3R_factor_1128_5_31()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1153_5_32()) {
+    if (jj_3R_factor_1160_5_32()) {
     jj_scanpos = xsp;
-    if (jj_3R_factor_1186_5_33()) return true;
+    if (jj_3R_factor_1193_5_33()) return true;
     }
     }
     }
@@ -2188,7 +2164,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
-  private boolean jj_3R_factor_1041_5_22()
+  private boolean jj_3R_factor_1048_5_22()
  {
     if (jj_scan_token(NUM_ENTERO)) return true;
     return false;
@@ -2203,7 +2179,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 
   private boolean jj_3_2()
  {
-    if (jj_3R_accesoVector_1400_3_14()) return true;
+    if (jj_3R_accesoVector_1407_3_14()) return true;
     return false;
   }
 
@@ -2211,6 +2187,37 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
  {
     if (jj_scan_token(ID)) return true;
     if (jj_scan_token(PAREN_ABRE)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1128_5_31()
+ {
+    if (jj_scan_token(OP_INCREMENTO)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1078_5_28()
+ {
+    if (jj_scan_token(ID)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_llamadaFuncion_842_5_16()
+ {
+    if (jj_3R_expresion_922_3_15()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_1407_3_14()
+ {
+    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(CORCHETE_ABRE)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_accesoVector_1439_7_17()) {
+    jj_scanpos = xsp;
+    if (jj_3R_accesoVector_1440_11_18()) return true;
+    }
     return false;
   }
 

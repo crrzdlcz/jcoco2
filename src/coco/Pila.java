@@ -20,7 +20,6 @@ public class Pila {
 
     public void push(Object valor) {
         stack.push(valor);
-        // Agregamos un movimiento.
         historialPila.add("PUSH: " + valor + "  |  Pila Actual: " + stack.toString());
 
     }
