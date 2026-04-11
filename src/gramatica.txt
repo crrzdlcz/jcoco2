@@ -19,7 +19,7 @@ public class GramaticaCoco
   private Tabla tabla = Tabla.getTabla();
   private Pila pilaSemantica = new Pila();
   private static java.util.List<String> listaErrores = new java.util.ArrayList<String>();
-  private int profundidadSwitch = 0; // Para accion semantica, break solo en switch. 
+  private int profundidadSwitch = 0; // semantica, break solo en switch. 
 
 
   // Getter para la pila
@@ -44,32 +44,40 @@ public class GramaticaCoco
     Token t;
     while (true) {
         t = getToken(1);
-        if (t.kind == EOF) break; // Si es fin de archivo, parar
+        if (t.kind == EOF) break; 
 
-        // Si encontramos un punto y coma, lo consumimos y salimos
+        // 1. Si encontramos punto y coma, consumimos y salimos.
         if (t.kind == PUNTOYCOMA) {
             consumeToken(PUNTOYCOMA);
             return;
         }
         
-        // Si encontramos una llave de cierre, NO la consumimos (pertenece al bloque padre)
-        // pero salimos para que el bloque padre se encargue.
+        // 2. Si encontramos llave de cierre '}' o FINAL, NO la consumimos.
         if (t.kind == LLAVE_CIERRA || t.kind == FINAL) {
             return;
         }
 
-          if (t.kind == ELSE) {
-            return;
+        // Si encontramos una llave de apertura '{'
+        if (t.kind == LLAVE_ABRE) {
+            consumeToken(LLAVE_ABRE);
+            int profundidad = 1;
+            while (profundidad > 0 && getToken(1).kind != EOF) {
+                Token sig = getToken(1);
+                if (sig.kind == LLAVE_ABRE) profundidad++;
+                else if (sig.kind == LLAVE_CIERRA) profundidad--;
+                consumeToken(sig.kind);
+            }
+            return; 
         }
-        
-        // Si encontramos el inicio de otra sentencia, paramos ahí para parsear la siguente
+
         if (t.kind == VAR || t.kind == IF || t.kind == BUCLE_FOR || 
             t.kind == BUCLE_WHILE || t.kind == SWITCH || t.kind == RETURN || 
-            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC) {
+            t.kind == SALIDA || t.kind == ENTRADA || t.kind == ID || t.kind == FUNC ||
+            t.kind == ENTERO || t.kind == FLOTANTE || t.kind == BOOLEANO || 
+            t.kind == CHAR || t.kind == STRING) {
             return;
         }
         
-        // Si no es nada anterior, detodas maneras se consume para seguir avanzando
         consumeToken(t.kind);
     }
   }
@@ -77,7 +85,6 @@ public class GramaticaCoco
   void consumeToken(int kind) throws ParseException {
     jj_consume_token(kind);
   }
-
 
 
   /*-- METODOS PARA COMPROBAR TIPODS --*/
@@ -242,10 +249,13 @@ public class GramaticaCoco
 
         // C) Operaciones Lógicas (&&, ||)
         if (nombre.contains("AND") || nombre.contains("OR")) {
-            if (tipoIzq.equals("bool") && tipoDer.equals("bool")) {
+            if ((tipoIzq.equals("bool") || tipoIzq.equals("int")) && 
+                (tipoDer.equals("bool") || tipoDer.equals("int"))) {
                 return "bool";
             }
-            registrarError("Error Semántico: Operadores lógicos requieren tipos 'bool', se encontró '" + tipoIzq + "' y '" + tipoDer + "'");
+            if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                registrarError("Error Semántico: No se pueden aplicar operadores lógicos entre tipos '" + tipoIzq + "' y '" + tipoDer + "'");
+            }
             return "error";
         }
     }
@@ -293,14 +303,18 @@ public class GramaticaCoco
       }
       // Operadores Lógicos (&&, ||)
       else if (op.kind == OP_AND || op.kind == OP_OR) {
-          if (tipoIzq.equals("bool") && tipoDer.equals("bool")) {
-              tipoResultado = "bool";
+          // Se relaja la validación: si son bool, es bool. 
+          // Si son int, asumimos evaluación ternaria (0=falso, !=0=verdadero) y el resultado es bool.
+          if ((tipoIzq.equals("bool") || tipoIzq.equals("int")) && 
+              (tipoDer.equals("bool") || tipoDer.equals("int"))) {
+              tipoResultado = "bool"; 
           } else {
               if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
-                  registrarError("Error Semántico: Operador '" + op.image + "' requiere operandos bool.");
+                  registrarError("Error Semántico: Operador '" + op.image + "' requiere operandos lógicos o numéricos.");
               }
           }
       }
+     
       // Operadores Relacionales (<, >, ==, etc.)
       else if (op.kind == OP_MAYOR_QUE || op.kind == OP_MENOR_QUE || op.kind == OP_MAYOR_IGUAL || 
                op.kind == OP_MENOR_IGUAL || op.kind == OP_IGUALDAD || op.kind == OP_DESIGUALDAD) {
@@ -915,7 +929,7 @@ Arbol expresion() :
   izquierda = expresionRelacional() // Primero busca el una expresion mas fuerte.
 
   (
-    ( op = <OP_SUMA> | op = <OP_RESTA> | op = <OP_OR> )
+    ( op = <OP_SUMA> | op = <OP_RESTA> | op = <OP_OR> | op = <OP_AND> ) //- > new opAND
 
     derecha = expresionRelacional()
     {
@@ -1001,7 +1015,7 @@ Arbol termino() :
         op = <OP_MULTI >
       | op = <OP_DIVI >
       | op = <OP_MOD >
-      | op = <OP_AND >
+      //| op = <OP_AND >
     )
     derecha = factor()
     {
@@ -1217,20 +1231,20 @@ Arbol declaracionDeVariable() :
 }
 {
   t_decl = <VAR> { nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_decl.image)); }
-  	
+      
   tipoDato = tiposDeDatos() { nodoDeclaracion.agregarHijo(new Arbol("Tipo: " + tipoDato)); }
-  	
+      
   t_dos_puntos = <DOSPUNTOS> { nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_dos_puntos.image)); }
 
   // Token identificador
   t_id = <ID>
   {
     nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_id.image));
-	  	
-	Simbolo nuevoSimbolo = new Simbolo(t_id.image, tipoDato, tabla.getAmbitoActual(), t_id.beginLine);
+      	
+    Simbolo nuevoSimbolo = new Simbolo(t_id.image, tipoDato, tabla.getAmbitoActual(), t_id.beginLine);
     tabla.insertar(nuevoSimbolo);
   }
-  	
+      
   [
     t_asig = <OP_ASIGNACION> { nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_asig.image)); }
     // Sub-produccion
@@ -1247,12 +1261,22 @@ Arbol declaracionDeVariable() :
         
         if (!tipoExpr.equals("error"))
         {
-          boolean esCompatible = tipoDato.equals(tipoExpr) || (tipoDato.equals("float") && tipoExpr.equals("int"));
+          // Si el tipo de la variable es float, y lo que se asignó es un entero
+          if (tipoDato.equals("float") && exp.getNombreProduccion().startsWith("Literal_INT")) {
+              registrarError("Error Semántico: Línea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+              " Para asignar a una variable 'float', el valor debe contener un punto:" + exp.getNombreProduccion().split(": ")[1].trim() + ").");
+          }
+          // --- FIN DE NUEVA VALIDACIÓN ---
+          
+          // Validación normal de compatibilidad
+          else {
+              boolean esCompatible = tipoDato.equals(tipoExpr) || (tipoDato.equals("float") && tipoExpr.equals("int"));
 
-          if (!esCompatible)
-          {
-            registrarError("Error Semántico: Linea " + t_id.beginLine + ", columna " + t_id.beginColumn +
-            " No se puede asignar tipo '" + tipoExpr + "' a variable de tipo '" + tipoDato + "'.");
+              if (!esCompatible)
+              {
+                registrarError("Error Semántico: Linea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+                " No se puede asignar tipo '" + tipoExpr + "' a variable de tipo '" + tipoDato + "'.");
+              }
           }
         }
       }
@@ -1263,7 +1287,6 @@ Arbol declaracionDeVariable() :
   { nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_pc.image)); }
   { return nodoDeclaracion; }
 }
-
 // print!("Hola mundo");
 Arbol salida() :
 {

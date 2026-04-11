@@ -2,6 +2,8 @@ package coco;
 
 import java.util.ArrayList;
 import java.util.List;
+import coco.Tabla;
+import coco.Simbolo;
 
 public class GeneradorTAC {
     
@@ -34,6 +36,8 @@ public class GeneradorTAC {
             genRetorno(nodo);
         } else if (nombre.equals("SentenciaDeSalida")) {
             genSalida(nodo);
+        } else if (nombre.equals("SentenciaDeEntrada")) {
+            genEntrada(nodo);
         } else if (nombre.equals("Condicional_IF")) {
             genIf(nodo);
         } else if (nombre.equals("Bucle_WHILE")) {
@@ -130,14 +134,88 @@ public class GeneradorTAC {
         }
     }
 
+    
     private void genSalida(Arbol nodo) {
         Arbol exp = buscarExpresion(nodo.getHijos());
         if (exp != null) {
             String val = genExpresion(exp);
-            emit("print", val, null, null);
+            String nombreExp = exp.getNombreProduccion();
+            
+            // 1. Si es una cadena literal, usamos print normal
+            if (nombreExp.startsWith("Literal_CADENA")) {
+                emit("print", val, null, null);
+            } 
+            // 2. Si es un número flotante literal (ej. 10.5)
+            else if (nombreExp.startsWith("Literal_FLOAT")) {
+                emit("print_float", val, null, null);
+            }
+            // 3. Si es una variable (Identificador), buscamos su tipo real en la Tabla de Símbolos
+            else if (nombreExp.startsWith("Literal_IDENTIFICADOR")) {
+                String idNombre = nombreExp.split(": ")[1].trim();
+                Simbolo s = Tabla.getTabla().buscar(idNombre);
+                if (s != null && s.tipo.equals("float")) {
+                    emit("print_float", val, null, null);
+                } else {
+                    emit("print_int", val, null, null);
+                }
+            }
+            // 4. Cualquier otra cosa (enteros, resultados de operaciones)
+            else {
+                // Usamos el método que agregamos antes para saber si la operación resultó en float
+                String tipoOp = obtenerTipoDeArbol(exp);
+                if (tipoOp.equals("float")) {
+                    emit("print_float", val, null, null);
+                } else {
+                    emit("print_int", val, null, null);
+                }
+            }
         }
     }
-
+    
+    
+    // Para la entrada, solo son numeros enteros
+    private void genEntrada(Arbol nodo) {
+        String idVar = null;
+        
+        // Buscamos el identificador de la variable
+        for (Arbol h : nodo.getHijos()) {
+            String nombre = h.getNombreProduccion();
+            if (nombre.startsWith("Token: ")) {
+                String val = nombre.split(": ")[1].trim();
+                
+                // Filtramos la palabra reservada y los paréntesis/punto y coma
+                if (!val.equals("scan!") && !val.equals("(") && !val.equals(")") && !val.equals(";")) {
+                    idVar = val;
+                    break; // Ya encontramos la variable, salimos del ciclo
+                }
+            }
+        }
+        
+        if (idVar != null) {
+            emit("scan_int", idVar, null, idVar);
+        }
+    }
+    // Método auxiliar para saber si una operación es flotante
+    private String obtenerTipoDeArbol(Arbol nodo) {
+        if (nodo == null) return "int";
+        String nombre = nodo.getNombreProduccion();
+        if (nombre.startsWith("Literal_FLOAT")) return "float";
+        if (nombre.startsWith("Literal_INT")) return "int";
+        if (nombre.startsWith("Literal_IDENTIFICADOR")) {
+            try {
+                String id = nombre.split(": ")[1].trim();
+                Simbolo s = Tabla.getTabla().buscar(id);
+                if (s != null && s.tipo.equals("float")) return "float";
+            } catch (Exception e) {}
+        }
+        if (nombre.startsWith("Operacion_") || nombre.startsWith("Operador_")) {
+            if (nodo.getHijos().size() > 0) {
+                if (obtenerTipoDeArbol(nodo.getHijos().get(0)).equals("float")) return "float";
+            }
+        }
+        return "int";
+    }
+    
     private void genIf(Arbol nodo) {
         String lElse = newLabel();
         String lEnd = newLabel();
@@ -240,10 +318,62 @@ public class GeneradorTAC {
 
             String temp = newTemp();
             
-            // Traducir operadores
-            if (op.equals("&&")) op = "and";
-            else if (op.equals("||")) op = "or";
+            // --- PARA AND (&&) ---
+            if (op.equals("&&")) {
+                String lFalso = newLabel();
+                String lFin = newLabel();
+                
+                // Si arg1 es falso (0), saltamos directo a poner el 0
+                emit("if_false", arg1, null, lFalso);
+                // Si arg2 es falso (0), saltamos a poner el 0
+                emit("if_false", arg2, null, lFalso);
+                // Si no saltamos, ambos son verdaderos
+                emit("=", "1", null, temp);
+                emit("goto", null, null, lFin);
+                
+                // Etiqueta donde ponemos falso
+                emit("label", null, null, lFalso);
+                emit("=", "0", null, temp);
+                
+                // Etiqueta de fin
+                emit("label", null, null, lFin);
+                return temp;
+            }
+            // --- PARA OR (||) ---
+            else if (op.equals("||")) {
+                String lCheckArg2 = newLabel();
+                String lFalso = newLabel();
+                String lFin = newLabel();
+                
+                // Si arg1 es verdadero (!=0), saltamos a poner el 1
+                emit("if_false", arg1, null, lCheckArg2);
+                emit("=", "1", null, temp);
+                emit("goto", null, null, lFin);
+                
+                // Aquí llegamos si arg1 fue falso. Ahora evaluamos arg2
+                emit("label", null, null, lCheckArg2);
+                emit("if_false", arg2, null, lFalso);
+                emit("=", "1", null, temp);
+                emit("goto", null, null, lFin);
+                
+                // Aquí llegamos si ambos fueron falsos
+                emit("label", null, null, lFalso);
+                emit("=", "0", null, temp);
+                
+                // Etiqueta de fin
+                emit("label", null, null, lFin);
+                return temp;
+            }
             
+            // NUEVO: Si es una operación de flotantes, le agregamos una 'f' (ej: f+)
+            if (obtenerTipoDeArbol(nodo).equals("float")) {
+                if (op.equals("+")) op = "f+";
+                else if (op.equals("-")) op = "f-";
+                else if (op.equals("*")) op = "f*";
+                else if (op.equals("/")) op = "f/";
+            }
+
+            // Los operadores relacionales (==, !=, <, >) se quedan igual
             emit(op, arg1, arg2, temp);
             return temp;
         }
@@ -339,3 +469,4 @@ public class GeneradorTAC {
         return codigo;
     }
 }
+

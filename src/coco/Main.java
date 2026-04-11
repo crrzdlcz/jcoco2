@@ -58,6 +58,12 @@ public class Main {
             if (arbol != null) {
                 guardarArbol(arbol, rutaArchivo + " - ARBOL.txt");
                 guardarTAC(arbol, rutaArchivo + " - TAC.txt");
+                
+                if (errores.isEmpty())
+                {
+                	String rutaASM = rutaArchivo + ".asm";
+                	guardarNASM(rutaArchivo +" - TAC.txt", rutaASM);
+                }
             }
             
             
@@ -67,6 +73,24 @@ public class Main {
     }
   }
   
+  
+  private static void guardarNASM(String rutaArchivoTAC, String rutaSalidaASM)
+  {
+      Mensaje msj = new Mensaje();
+      
+      try 
+      {
+          GeneradorNASM gen = new GeneradorNASM();
+          
+          gen.generarASM(rutaArchivoTAC, rutaSalidaASM);
+          
+          msj.ok("CÓDIGO NASM GENERADO EN: \n  " + rutaSalidaASM + "\n");
+      }
+      catch (Exception e)
+      {
+          msj.error("Error al generar código ensamblador: " + e.getMessage());
+      }
+  }
   
   private static void guardarTAC(Arbol arbol, String rutaSalida) 
   {
@@ -106,7 +130,8 @@ public class Main {
       }
   }
 
-  private static void guardarErrores(List<String> errores, String rutaSalida) {
+  private static void guardarErrores(List<String> errores, String rutaSalida) 
+  {
       Mensaje msj = new Mensaje();
       try (PrintStream archivo = new PrintStream(rutaSalida)) {
           archivo.println("--- DETALLE DE ERRORES ENCONTRADOS ---");

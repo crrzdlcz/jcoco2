@@ -244,10 +244,13 @@ public class GramaticaCoco implements GramaticaCocoConstants {
 
         // C) Operaciones Lógicas (&&, ||)
         if (nombre.contains("AND") || nombre.contains("OR")) {
-            if (tipoIzq.equals("bool") && tipoDer.equals("bool")) {
+            if ((tipoIzq.equals("bool") || tipoIzq.equals("int")) &&
+                (tipoDer.equals("bool") || tipoDer.equals("int"))) {
                 return "bool";
             }
-            registrarError("Error Sem\u00e1ntico: Operadores l\u00f3gicos requieren tipos 'bool', se encontr\u00f3 '" + tipoIzq + "' y '" + tipoDer + "'");
+            if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
+                registrarError("Error Sem\u00e1ntico: No se pueden aplicar operadores l\u00f3gicos entre tipos '" + tipoIzq + "' y '" + tipoDer + "'");
+            }
             return "error";
         }
     }
@@ -295,14 +298,18 @@ public class GramaticaCoco implements GramaticaCocoConstants {
       }
       // Operadores Lógicos (&&, ||)
       else if (op.kind == OP_AND || op.kind == OP_OR) {
-          if (tipoIzq.equals("bool") && tipoDer.equals("bool")) {
+          // Se relaja la validación: si son bool, es bool. 
+          // Si son int, asumimos evaluación ternaria (0=falso, !=0=verdadero) y el resultado es bool.
+          if ((tipoIzq.equals("bool") || tipoIzq.equals("int")) &&
+              (tipoDer.equals("bool") || tipoDer.equals("int"))) {
               tipoResultado = "bool";
           } else {
               if (!tipoIzq.equals("error") && !tipoDer.equals("error")) {
-                  registrarError("Error Sem\u00e1ntico: Operador '" + op.image + "' requiere operandos bool.");
+                  registrarError("Error Sem\u00e1ntico: Operador '" + op.image + "' requiere operandos l\u00f3gicos o num\u00e9ricos.");
               }
           }
       }
+
       // Operadores Relacionales (<, >, ==, etc.)
       else if (op.kind == OP_MAYOR_QUE || op.kind == OP_MENOR_QUE || op.kind == OP_MAYOR_IGUAL ||
                op.kind == OP_MENOR_IGUAL || op.kind == OP_IGUALDAD || op.kind == OP_DESIGUALDAD) {
@@ -888,6 +895,7 @@ pilaSemantica.push(tipoRetorno);
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
       case OP_SUMA:
       case OP_RESTA:
+      case OP_AND:
       case OP_OR:{
         ;
         break;
@@ -909,12 +917,18 @@ pilaSemantica.push(tipoRetorno);
         op = jj_consume_token(OP_OR);
         break;
         }
+      case OP_AND:{
+        op = jj_consume_token(OP_AND);
+        break;
+        }
       default:
         jj_la1[10] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
-      derecha = expresionRelacional();
+      //- > new opAND
+      
+          derecha = expresionRelacional();
 // Accion sematica obt tipos, validar y empujar
       validarOperacionBinaria(op);
       // Nodo para las operaciones.
@@ -1022,8 +1036,7 @@ pilaSemantica.push(tipoRetorno);
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
       case OP_MULTI:
       case OP_DIVI:
-      case OP_MOD:
-      case OP_AND:{
+      case OP_MOD:{
         ;
         break;
         }
@@ -1042,10 +1055,6 @@ pilaSemantica.push(tipoRetorno);
         }
       case OP_MOD:{
         op = jj_consume_token(OP_MOD);
-        break;
-        }
-      case OP_AND:{
-        op = jj_consume_token(OP_AND);
         break;
         }
       default:
@@ -1287,7 +1296,7 @@ nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_dos_puntos.image));
       t_id = jj_consume_token(ID);
 nodoDeclaracion.agregarHijo(new Arbol("Token: " + t_id.image));
 
-        Simbolo nuevoSimbolo = new Simbolo(t_id.image, tipoDato, tabla.getAmbitoActual(), t_id.beginLine);
+    Simbolo nuevoSimbolo = new Simbolo(t_id.image, tipoDato, tabla.getAmbitoActual(), t_id.beginLine);
     tabla.insertar(nuevoSimbolo);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case OP_ASIGNACION:{
@@ -1304,12 +1313,22 @@ nodoDeclaracion.agregarHijo(exp);
 
         if (!tipoExpr.equals("error"))
         {
-          boolean esCompatible = tipoDato.equals(tipoExpr) || (tipoDato.equals("float") && tipoExpr.equals("int"));
+          // Si el tipo de la variable es float, y lo que se asignó es un entero
+          if (tipoDato.equals("float") && exp.getNombreProduccion().startsWith("Literal_INT")) {
+              registrarError("Error Sem\u00e1ntico: L\u00ednea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+              " Para asignar a una variable 'float', el valor debe contener un punto:" + exp.getNombreProduccion().split(": ")[1].trim() + ").");
+          }
+          // --- FIN DE NUEVA VALIDACIÓN ---
 
-          if (!esCompatible)
-          {
-            registrarError("Error Sem\u00e1ntico: Linea " + t_id.beginLine + ", columna " + t_id.beginColumn +
-            " No se puede asignar tipo '" + tipoExpr + "' a variable de tipo '" + tipoDato + "'.");
+          // Validación normal de compatibilidad
+          else {
+              boolean esCompatible = tipoDato.equals(tipoExpr) || (tipoDato.equals("float") && tipoExpr.equals("int"));
+
+              if (!esCompatible)
+              {
+                registrarError("Error Sem\u00e1ntico: Linea " + t_id.beginLine + ", columna " + t_id.beginColumn +
+                " No se puede asignar tipo '" + tipoExpr + "' a variable de tipo '" + tipoDato + "'.");
+              }
           }
         }
       break;
@@ -2014,159 +2033,63 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     finally { jj_save(4, xla); }
   }
 
-  private boolean jj_3_1()
- {
-    if (jj_3R_llamadaFuncion_817_3_13()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_1073_5_27()
- {
-    if (jj_3R_llamadaFuncion_817_3_13()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_accesoVector_1440_11_18()
- {
-    if (jj_scan_token(ID)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_1068_5_26()
+  private boolean jj_3R_factor_1075_5_26()
  {
     if (jj_scan_token(FALSE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1160_5_32()
+  private boolean jj_3R_factor_1167_5_32()
  {
     if (jj_scan_token(OP_DECREMENTO)) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1439_7_17()
- {
-    if (jj_scan_token(NUM_ENTERO)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_1063_5_25()
+  private boolean jj_3R_factor_1070_5_25()
  {
     if (jj_scan_token(TRUE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1109_5_30()
+  private boolean jj_3R_factor_1116_5_30()
  {
     if (jj_scan_token(OP_NOT)) return true;
     return false;
   }
 
-  private boolean jj_3R_expresion_922_3_15()
+  private boolean jj_3R_expresion_929_3_15()
  {
-    if (jj_3R_expresionRelacional_960_3_19()) return true;
+    if (jj_3R_expresionRelacional_967_3_19()) return true;
     return false;
   }
 
-  private boolean jj_3_5()
- {
-    if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(OP_ASIGNACION)) return true;
-    if (jj_3R_expresion_922_3_15()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_1058_5_24()
+  private boolean jj_3R_factor_1065_5_24()
  {
     if (jj_scan_token(STR)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1053_5_23()
+  private boolean jj_3R_factor_1060_5_23()
  {
     if (jj_scan_token(NUM_FLOTANTE)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1193_5_33()
+  private boolean jj_3R_factor_1200_5_33()
  {
     if (jj_scan_token(OP_RESTA)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1099_5_29()
+  private boolean jj_3R_factor_1106_5_29()
  {
     if (jj_scan_token(PAREN_ABRE)) return true;
     return false;
   }
 
-  private boolean jj_3R_expresionRelacional_960_3_19()
+  private boolean jj_3R_expresionRelacional_967_3_19()
  {
-    if (jj_3R_termino_1005_3_20()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_llamadaFuncion_817_3_13()
- {
-    if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(PAREN_ABRE)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_llamadaFuncion_842_5_16()) jj_scanpos = xsp;
-    if (jj_scan_token(PAREN_CIERRA)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_termino_1005_3_20()
- {
-    if (jj_3R_factor_1048_5_21()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_factor_1048_5_21()
- {
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_factor_1048_5_22()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1053_5_23()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1058_5_24()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1063_5_25()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1068_5_26()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1073_5_27()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1078_5_28()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1099_5_29()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1109_5_30()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1128_5_31()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1160_5_32()) {
-    jj_scanpos = xsp;
-    if (jj_3R_factor_1193_5_33()) return true;
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    }
-    return false;
-  }
-
-  private boolean jj_3R_factor_1048_5_22()
- {
-    if (jj_scan_token(NUM_ENTERO)) return true;
+    if (jj_3R_termino_1012_3_20()) return true;
     return false;
   }
 
@@ -2177,9 +2100,86 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
+  private boolean jj_3R_termino_1012_3_20()
+ {
+    if (jj_3R_factor_1055_5_21()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_llamadaFuncion_824_3_13()
+ {
+    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(PAREN_ABRE)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_llamadaFuncion_849_5_16()) jj_scanpos = xsp;
+    if (jj_scan_token(PAREN_CIERRA)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1055_5_21()
+ {
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_factor_1055_5_22()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1060_5_23()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1065_5_24()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1070_5_25()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1075_5_26()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1080_5_27()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1085_5_28()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1106_5_29()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1116_5_30()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1135_5_31()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1167_5_32()) {
+    jj_scanpos = xsp;
+    if (jj_3R_factor_1200_5_33()) return true;
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    return false;
+  }
+
+  private boolean jj_3R_factor_1055_5_22()
+ {
+    if (jj_scan_token(NUM_ENTERO)) return true;
+    return false;
+  }
+
   private boolean jj_3_2()
  {
-    if (jj_3R_accesoVector_1407_3_14()) return true;
+    if (jj_3R_accesoVector_1423_3_14()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_1423_3_14()
+ {
+    if (jj_scan_token(ID)) return true;
+    if (jj_scan_token(CORCHETE_ABRE)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_accesoVector_1455_7_17()) {
+    jj_scanpos = xsp;
+    if (jj_3R_accesoVector_1456_11_18()) return true;
+    }
     return false;
   }
 
@@ -2190,34 +2190,53 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
     return false;
   }
 
-  private boolean jj_3R_factor_1128_5_31()
+  private boolean jj_3R_factor_1135_5_31()
  {
     if (jj_scan_token(OP_INCREMENTO)) return true;
     return false;
   }
 
-  private boolean jj_3R_factor_1078_5_28()
+  private boolean jj_3R_accesoVector_1456_11_18()
  {
     if (jj_scan_token(ID)) return true;
     return false;
   }
 
-  private boolean jj_3R_llamadaFuncion_842_5_16()
+  private boolean jj_3R_factor_1085_5_28()
  {
-    if (jj_3R_expresion_922_3_15()) return true;
+    if (jj_scan_token(ID)) return true;
     return false;
   }
 
-  private boolean jj_3R_accesoVector_1407_3_14()
+  private boolean jj_3R_llamadaFuncion_849_5_16()
+ {
+    if (jj_3R_expresion_929_3_15()) return true;
+    return false;
+  }
+
+  private boolean jj_3_1()
+ {
+    if (jj_3R_llamadaFuncion_824_3_13()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_accesoVector_1455_7_17()
+ {
+    if (jj_scan_token(NUM_ENTERO)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_factor_1080_5_27()
+ {
+    if (jj_3R_llamadaFuncion_824_3_13()) return true;
+    return false;
+  }
+
+  private boolean jj_3_5()
  {
     if (jj_scan_token(ID)) return true;
-    if (jj_scan_token(CORCHETE_ABRE)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_accesoVector_1439_7_17()) {
-    jj_scanpos = xsp;
-    if (jj_3R_accesoVector_1440_11_18()) return true;
-    }
+    if (jj_scan_token(OP_ASIGNACION)) return true;
+    if (jj_3R_expresion_929_3_15()) return true;
     return false;
   }
 
@@ -2240,7 +2259,7 @@ String tiposDeDatos() throws ParseException {//Arbol nodoTipo = new Arbol("TipoD
 	   jj_la1_init_1();
 	}
 	private static void jj_la1_init_0() {
-	   jj_la1_0 = new int[] {0x0,0x7c0,0x800,0x7c0,0x7c0,0x7c0,0x0,0x800,0x98400000,0x40600000,0x40600000,0x1f8000,0x1f8000,0x23800000,0x23800000,0x0,0x98400000,0x4000000,0x0,0x0,0x0,0x98400000,0x0,0x0,0x0,0x800,0x0,0x0,0x0,0x0,0x0,0x7c0,0x0,0x7c0,0x0,0x7c0,};
+	   jj_la1_0 = new int[] {0x0,0x7c0,0x800,0x7c0,0x7c0,0x7c0,0x0,0x800,0x98400000,0x60600000,0x60600000,0x1f8000,0x1f8000,0x3800000,0x3800000,0x0,0x98400000,0x4000000,0x0,0x0,0x0,0x98400000,0x0,0x0,0x0,0x800,0x0,0x0,0x0,0x0,0x0,0x7c0,0x0,0x7c0,0x0,0x7c0,};
 	}
 	private static void jj_la1_init_1() {
 	   jj_la1_1 = new int[] {0x20000,0x21d00e5,0x0,0x0,0x21d00e5,0x21d00e5,0x2000000,0x0,0x7e00100,0x0,0x0,0x0,0x0,0x0,0x0,0x5e00000,0x2000100,0x0,0x2000000,0x2400000,0x2400000,0x7e00100,0x2000000,0x2010000,0x2000000,0x0,0x401,0x2,0x8,0x10,0x4400000,0x21d00e5,0x20,0x21d00e5,0x20,0x0,};

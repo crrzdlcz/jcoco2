@@ -1,0 +1,9 @@
+_inicio
+
+    coco int: x = 20;
+    coco int: y = 10;
+
+    print!("El resultado de la suma es:");
+    print!(x + y);
+
+final_

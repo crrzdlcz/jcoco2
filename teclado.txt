@@ -1,0 +1,16 @@
+_inicio
+
+    // -- Código para saber si el numero que ingresamos es par --
+
+    coco int: numero = 0;
+
+    print!("Ingresa un numero");
+    scan!(numero);
+
+    if (numero % 2 == 0) {
+        print!("-> El número ingresado es par");
+    } else {
+        print!("-x El número ingresado no es par");
+    }
+
+final_

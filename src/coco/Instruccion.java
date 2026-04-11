@@ -35,11 +35,20 @@ public class Instruccion {
         } else if (op.equals("=")) {
             return res + " = " + arg1;
         }
+        else if (op.equals("print_int")) {
+        	return "print_int " + arg1;
+        } else if (op.equals("print_float")) {
+        	return "print_float " + arg1;
+        }
         else if (op.equals("[]=")) {
             return res + "[" + arg2 + "] = " + arg1; // res = array, arg2 = index, arg1 = value
         }
         else if (op.equals("=[]")) {
             return res + " = " + arg1 + "[" + arg2 + "]"; // res = temp, arg1 = array, arg2 = index
+        }
+        // Para leer datos desde el teclado, solo int.
+        else if (op.equals("scan_int")) {
+            return "scan_int " + arg1;
         }
         // Operaciones binarias: res = arg1 op arg2
         return res + " = " + arg1 + " " + op + " " + arg2;

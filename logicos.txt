@@ -1,0 +1,10 @@
+_inicio
+
+    coco int: numMayor = 10;
+    coco int: nunMenor = 2;
+
+    if (nunMenor != numMayor && numMayor > nunMenor) {
+        print!("Efectivamente, Si es mayor.");
+    }
+
+final_
