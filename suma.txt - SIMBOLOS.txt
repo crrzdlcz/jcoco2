@@ -1,0 +1,9 @@
+--- TABLA DE SIMBOLOS ----------------------------------
+
+== global (Registros: 2) ==
+NOMBRE          | TIPO       | ÁMBITO          | LINEA
+-----------------------------------------------------
+x               | int        | global          | 3
+y               | int        | global          | 4
+
+------------------------------------ FIN TABLA ------

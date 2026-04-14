@@ -113,14 +113,14 @@ public class GeneradorNASM {
     private StringBuilder dataSection = new StringBuilder();
     private StringBuilder bssSection = new StringBuilder();
     private StringBuilder textSection = new StringBuilder();
-    private StringBuilder functionsSection = new StringBuilder(); // NUEVO: Para guardar las funciones antes de _start
+    private StringBuilder functionsSection = new StringBuilder(); // Para guardar las funciones antes de _start
 
     // Control de variables y cadenas para no duplicarlas
     private Set<String> variablesDeclaradas = new HashSet<>();
     private Map<String, String> cadenasDeclaradas = new LinkedHashMap<>();
     private int contadorCadenas = 0;
     
-    // NUEVO: Control para saber si estamos escribiendo dentro de una función
+    // Para saber si estamos escribiendo dentro de una función
     private boolean insideFunction = false;
     private boolean requierePrintInt = false;
     private boolean requierePrintFloat = false;
@@ -129,8 +129,7 @@ public class GeneradorNASM {
     // Patrones RegEx (Sin cambios)
     private final Pattern PAT_ASSIGN_ARR = Pattern.compile("^(\\w+)\\[(.+)\\]\\s*=\\s*(.+)$");
     private final Pattern PAT_READ_ARR = Pattern.compile("^(\\w+)\\s*=\\s*(\\w+)\\[(.+)\\]$");
-   // private final Pattern PAT_OP_BIN = Pattern.compile("^(\\w+)\\s*=\\s*(.+)\\s+(\\+|\\-|\\*|\\/|==|!=|<|>|&&|\\|\\|)\\s+(.+)$");
-    private final Pattern PAT_OP_BIN = Pattern.compile("^(\\w+)\\s*=\\s*(.+)\\s+(f\\+|f\\-|f\\*|f\\/|==|!=|<|>|&&|\\|\\||\\+|\\-|\\*|\\/)\\s+(.+)$");
+    private final Pattern PAT_OP_BIN = Pattern.compile("^(\\w+)\\s*=\\s*(.+)\\s+(f\\+|f\\-|f\\*|f\\/|%|==|!=|>=|<=|<|>|&&|\\|\\||\\+|\\-|\\*|\\/)\\s+(.+)$");
     private final Pattern PAT_ASSIGN_SIMPLE = Pattern.compile("^(\\w+)\\s*=\\s*(.+)$");
     private final Pattern PAT_PRINT = Pattern.compile("^print\\s+(.+)$");
     private final Pattern PAT_PARAM = Pattern.compile("^param\\s+(.+)$");
@@ -143,7 +142,7 @@ public class GeneradorNASM {
 
     public void generarASM(String rutaTAC, String rutaSalidaASM) {
         try {
-            // NUEVO: Leemos todo el archivo a una lista para poder "mirar hacia adelante"
+            // Leemos todo el archivo a una lista para poder "mirar hacia adelante"
             List<String> lineasTAC = Files.readAllLines(Paths.get(rutaTAC), StandardCharsets.UTF_8);
 
             // 1. Inicializar secciones (OJO: Aquí ya NO ponemos _start)
@@ -233,30 +232,55 @@ public class GeneradorNASM {
                 fw.write("\n; --- FIN DEL PROGRAMA ---\n");
                 fw.write("    mov rax, 60\n    xor rdi, rdi\n    syscall\n");
                 
-                
                 // SUBRUTINA PARA IMPRIMIR ENTEROS
                 if (requierePrintInt) {
                     fw.write("\n; --- SUBRUTINA PARA IMPRIMIR ENTEROS ---\n");
                     fw.write("print_integer:\n");
-                    fw.write("    push r12\n"); // Guardamos r12 (callee-saved)
-                    fw.write("    mov rax, [rdi]\n");
-                    fw.write("    cmp rax, 0\n    jge .start_div\n");
-                    fw.write("    push rax\n    mov rax, 1\n    mov rdi, 1\n    lea rsi, [rel char_minus]\n    mov rdx, 1\n    syscall\n");
-                    fw.write("    pop rax\n    neg rax\n");
+                    fw.write("    push r12\n");
+                    fw.write("    push r13\n");
+                    fw.write("    sub rsp, 32\n"); // Creamos un buffer de 32 bytes en la pila
+                    
+                    fw.write("    mov rax, [rdi]\n"); // Cargamos el valor de la variable
+                    fw.write("    mov r13, rsp\n");   // r13 apuntará al final de nuestro buffer
+                    fw.write("    add r13, 31\n");    // Nos posicionamos en el último byte (índice 31)
+                    fw.write("    mov byte [r13], 10\n"); // Ponemos un salto de línea al final
+                    fw.write("    mov r12, 1\n");     // Inicializamos el contador de longitud en 1 (el salto de línea)
+                    
+                    // Revisamos si es negativo
+                    fw.write("    cmp rax, 0\n");
+                    fw.write("    jge .start_div\n");
+                    fw.write("    neg rax\n");        // Lo convertimos a positivo
+                    fw.write("    dec r13\n");        // Retrocedemos el puntero
+                    fw.write("    mov byte [r13], '-'\n"); // Escribimos el signo menos
+                    fw.write("    inc r12\n");        // Aumentamos la longitud
+                    
                     fw.write(".start_div:\n");
-                    fw.write("    mov r12, 0\n"); // USAMOS R12 EN VEZ DE RCX !!!
                     fw.write("    mov rbx, 10\n");
                     fw.write(".loop_div:\n");
-                    fw.write("    xor rdx, rdx\n    div rbx\n");
-                    fw.write("    add rdx, '0'\n    push rdx\n    inc r12\n"); // CONTAMOS CON R12
-                    fw.write("    cmp rax, 0\n    jnz .loop_div\n");
-                    fw.write(".loop_print:\n");
-                    fw.write("    mov rax, 1\n    mov rdi, 1\n    pop rsi\n    mov rdx, 1\n    syscall\n");
-                    fw.write("    dec r12\n    cmp r12, 0\n    jnz .loop_print\n"); // VERIFICAMOS CON R12
-                    fw.write("    mov rax, 1\n    mov rdi, 1\n    lea rsi, [rel new_line]\n    mov rdx, 1\n    syscall\n");
-                    fw.write("    pop r12\n"); // Restauramos r12
+                    fw.write("    xor rdx, rdx\n");
+                    fw.write("    div rbx\n");        // Dividimos rax entre 10
+                    fw.write("    add rdx, '0'\n");   // Convertimos el residuo a ASCII
+                    fw.write("    dec r13\n");        // Retrocedemos el puntero del buffer
+                    fw.write("    mov [r13], dl\n");  // Guardamos el CARÁCTER en el buffer de memoria
+                    fw.write("    inc r12\n");        // Aumentamos el tamaño total de la cadena
+                    fw.write("    cmp rax, 0\n");
+                    fw.write("    jnz .loop_div\n");
+                    
+                    // --- IMPRIMIR TODO DE UNA SOLA VEZ ---
+                    // r13 ahora apunta al inicio del número
+                    // r12 tiene la longitud total
+                    fw.write("    mov rax, 1\n");
+                    fw.write("    mov rdi, 1\n");
+                    fw.write("    mov rsi, r13\n");   // PASAMOS EL PUNTERO AL INICIO DEL BUFFER
+                    fw.write("    mov rdx, r12\n");   // PASAMOS LA LONGITUD TOTAL
+                    fw.write("    syscall\n");
+                    
+                    fw.write("    add rsp, 32\n");    // Limpiamos el buffer
+                    fw.write("    pop r13\n");
+                    fw.write("    pop r12\n");
                     fw.write("    ret\n\n");
                 }
+                
                 
                 // SUBRUTINA PARA LEER ENTEROS DESDE TECLADO
                 if (requiereScanInt) {
@@ -264,28 +288,30 @@ public class GeneradorNASM {
                     fw.write("read_integer:\n");
                     fw.write("    push r12\n");
                     fw.write("    push r13\n");
-                    fw.write("    sub rsp, 32\n"); // Buffer de 32 bytes en la pila
+                    fw.write("    push rbx\n");          // Guardamos rbx en la pila
+                    fw.write("    mov rbx, rdi\n");      // rbx guarda la dirección de 'x'
+                    fw.write("    sub rsp, 32\n");       // Buffer de 32 bytes en la pila
                     
                     // 1. Llamar al sistema operativo para leer del teclado
-                    fw.write("    mov rax, 0\n");    // sys_read
-                    fw.write("    mov rdi, 0\n");    // stdin
-                    fw.write("    mov rsi, rsp\n");  // Guardar en nuestro buffer
-                    fw.write("    mov rdx, 32\n");   // Leer máximo 32 bytes
+                    fw.write("    mov rax, 0\n");        // sys_read
+                    fw.write("    mov rdi, 0\n");        // stdin (Aquí ya podemos sobreescribir rdi sin miedo)
+                    fw.write("    mov rsi, rsp\n");      // Guardar en nuestro buffer
+                    fw.write("    mov rdx, 32\n");       // Leer máximo 32 bytes
                     fw.write("    syscall\n");
                     
                     // 2. Asegurar que el string termine en 0 (por si acaso)
                     fw.write("    mov byte [rsp + rax], 0\n"); 
                     
                     // 3. Inicializar variables
-                    fw.write("    xor rax, rax\n"); // rax = total final
-                    fw.write("    xor r13, r13\n"); // r13 = bandera de negativo
-                    fw.write("    mov r12, 0\n");    // r12 = índice para recorrer
+                    fw.write("    xor rax, rax\n");      // rax = total final
+                    fw.write("    xor r13, r13\n");      // r13 = bandera de negativo
+                    fw.write("    mov r12, 0\n");        // r12 = índice para recorrer
                     
                     fw.write(".check_sign:\n");
                     fw.write("    movzx rcx, byte [rsp + r12]\n"); 
                     fw.write("    cmp cl, '-'\n");
                     fw.write("    jne .start_loop\n");
-                    fw.write("    mov r13, 1\n");     // Es negativo
+                    fw.write("    mov r13, 1\n");        // Es negativo
                     fw.write("    inc r12\n");
                     fw.write("    jmp .check_sign\n");
                     
@@ -323,11 +349,12 @@ public class GeneradorNASM {
                     fw.write("    imul rax, -1\n");
                     
                     fw.write(".save_value:\n");
-                    // Guardar resultado en la variable 'x'
-                    fw.write("    mov [rdi], rax\n");
+                    // Guardar resultado usando rbx (que tiene la dirección real de 'x')
+                    fw.write("    mov [rbx], rax\n");
                     
                     // Restaurar pila y salir
                     fw.write("    add rsp, 32\n");
+                    fw.write("    pop rbx\n");           // Restauramos rbx
                     fw.write("    pop r13\n");
                     fw.write("    pop r12\n");
                     fw.write("    ret\n\n");
@@ -421,7 +448,7 @@ public class GeneradorNASM {
         }
     }
 
-    // NUEVO: Método auxiliar que decide si el código va a la sección de funciones o al principal
+    // Método auxiliar que decide si el código va a la sección de funciones o al principal
     private void emit(String texto) {
         if (insideFunction) {
             functionsSection.append(texto);
@@ -487,8 +514,20 @@ public class GeneradorNASM {
             case "/": 
                 emit("    cqo\n");
                 emit("    idiv qword " + (esNumero(op2) ? op2 : "[" + op2 + "]") + "\n"); break;
+            case "%":
+                emit("    cqo\n"); // Extender el signo de rax hacia rdx
+                if (esNumero(op2)) {
+                    // Si es un número (ej: 2), lo movemos a rbx porque idiv no acepta constantes
+                    emit("    mov rbx, " + op2 + "\n");
+                    emit("    idiv rbx\n");
+                } else {
+                    // Si es una variable, dividimos normalmente
+                    emit("    idiv qword [" + op2 + "]\n");
+                }
+                emit("    mov rax, rdx\n"); // El residuo queda en rdx, lo pasamos a rax
+                break;
                 
-            // --- NUEVAS OPERACIONES PARA FLOTANTES ---
+            // --- OPERACIONES PARA FLOTANTES ---
             case "f+": 
                 emit("    movq xmm0, " + (esNumero(op1) ? "__float64__("+op1+")" : "[" + op1 + "]") + "\n");
                 emit("    movq xmm1, " + (esNumero(op2) ? "__float64__("+op2+")" : "[" + op2 + "]") + "\n");
@@ -519,6 +558,8 @@ public class GeneradorNASM {
             case "!=": emitirComparacion("setne", op2); break;
             case "<":  emitirComparacion("setl", op2); break;
             case ">":  emitirComparacion("setg", op2); break;
+            case ">=": emitirComparacion("setge", op2); break;   // Para mayor igual
+            case "<=": emitirComparacion("setle", op2); break;
             case "&&": emit("    and rax, " + (esNumero(op2) ? op2 : "[" + op2 + "]") + "\n"); break;
             case "||": emit("    or rax, " + (esNumero(op2) ? op2 : "[" + op2 + "]") + "\n"); break;
         }
@@ -653,7 +694,7 @@ public class GeneradorNASM {
                 emit("    mov rax, " + etiqueta + "\n");
                 emit("    mov [" + dest + "], rax\n\n");
             } else {
-                // NUEVO: Si el valor tiene un punto, es flotante y usamos __float64__
+                // Si el valor tiene un punto, es flotante y usamos __float64__
                 if (val.contains(".")) {
                     emit("    mov rax, __float64__(" + val + ")\n");
                 } else {
@@ -741,6 +782,8 @@ public class GeneradorTAC {
             genRetorno(nodo);
         } else if (nombre.equals("SentenciaDeSalida")) {
             genSalida(nodo);
+        } else if (nombre.equals("SentenciaDeEntrada")) {
+            genEntrada(nodo);
         } else if (nombre.equals("Condicional_IF")) {
             genIf(nodo);
         } else if (nombre.equals("Bucle_WHILE")) {
@@ -876,16 +919,28 @@ public class GeneradorTAC {
     }
     
     
-    // Para la entrada, solo son numos enteros
+    // Para la entrada, solo son numeros enteros
     private void genEntrada(Arbol nodo) {
-        // Buscamos el ID de la variable que se va a leer
-        String idVar = extraerTexto(nodo.getHijos(), "Token: ");
+        String idVar = null;
+        
+        // Buscamos el identificador de la variable
+        for (Arbol h : nodo.getHijos()) {
+            String nombre = h.getNombreProduccion();
+            if (nombre.startsWith("Token: ")) {
+                String val = nombre.split(": ")[1].trim();
+                
+                // Filtramos la palabra reservada y los paréntesis/punto y coma
+                if (!val.equals("scan!") && !val.equals("(") && !val.equals(")") && !val.equals(";")) {
+                    idVar = val;
+                    break; // Ya encontramos la variable, salimos del ciclo
+                }
+            }
+        }
         
         if (idVar != null) {
             emit("scan_int", idVar, null, idVar);
         }
     }
-    
     // Método auxiliar para saber si una operación es flotante
     private String obtenerTipoDeArbol(Arbol nodo) {
         if (nodo == null) return "int";

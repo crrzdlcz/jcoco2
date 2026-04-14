@@ -1,0 +1,6 @@
+--- CODIGO INTERMEDIO (TAC) ---
+x = 20
+y = 10
+print "El resultado de la suma es:"
+t1 = x + y
+print_int t1

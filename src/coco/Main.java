@@ -7,6 +7,7 @@ import java.util.List;
 import javacc.GramaticaCoco;
 import javacc.ParseException;
 import javacc.TokenMgrError;
+import coco.Contador;
 
 public class Main {
 
@@ -20,6 +21,11 @@ public class Main {
     String rutaArchivo = args[0];
     GramaticaCoco parser = null;
     Arbol arbol = null;
+    
+    
+    // Para el contador:
+    Contador tiempoTotal = new Contador();
+    tiempoTotal.iniciar();
 
     try {
         InputStream is = Entrada.obtenerRuta(rutaArchivo);
@@ -34,7 +40,6 @@ public class Main {
 
     } catch (FileNotFoundException e) {
         msj.error("Archivo no encontrado: " + e.getMessage());
-        return; 
     } catch (Exception e) {
         msj.error("Error inesperado: " + e.getMessage());
     } finally {
@@ -59,17 +64,18 @@ public class Main {
                 guardarArbol(arbol, rutaArchivo + " - ARBOL.txt");
                 guardarTAC(arbol, rutaArchivo + " - TAC.txt");
                 
-                if (errores.isEmpty())
+                // Para el NASM
+                /*if (errores.isEmpty())
                 {
                 	String rutaASM = rutaArchivo + ".asm";
                 	guardarNASM(rutaArchivo +" - TAC.txt", rutaASM);
-                }
+                }/*/
             }
-            
-            
-            
-            
         }
+        
+        tiempoTotal.detener();
+        //msj.adv("TIEMPO DE EJECUCIÓN: " + tiempoTotal.getTiempoFormateado());
+        System.out.println( Colores.AZUL_NEGRITA + "# DEBUG # TIEMPO DE EJECUCIÓN: " + tiempoTotal.getTiempoFormateado());
     }
   }
   

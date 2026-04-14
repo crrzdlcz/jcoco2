@@ -1,0 +1,34 @@
+-> Raíz
+|  -> Token: _inicio
+|  -> DeclaracionDeVariable
+|  |  -> Token: coco
+|  |  -> Tipo: int
+|  |  -> Token: :
+|  |  -> Token: x
+|  |  -> Token: =
+|  |  -> Literal_INT: 20
+|  |  -> Token: ;
+|  -> DeclaracionDeVariable
+|  |  -> Token: coco
+|  |  -> Tipo: int
+|  |  -> Token: :
+|  |  -> Token: y
+|  |  -> Token: =
+|  |  -> Literal_INT: 10
+|  |  -> Token: ;
+|  -> SentenciaDeSalida
+|  |  -> Token: print!
+|  |  -> Token: (
+|  |  -> Literal_CADENA_DE_CARACTERES: "El resultado de la suma es:"
+|  |  -> Token: )
+|  |  -> Token: ;
+|  -> SentenciaDeSalida
+|  |  -> Token: print!
+|  |  -> Token: (
+|  |  -> Operacion_SUM_RES_OR: +
+|  |  |  -> Literal_IDENTIFICADOR: x
+|  |  |  -> Token: +
+|  |  |  -> Literal_IDENTIFICADOR: y
+|  |  -> Token: )
+|  |  -> Token: ;
+|  -> Token: final_

@@ -1,0 +1,17 @@
+--- TRAZA DE LA PILA SEMÁNTICA ---
+Formato: [Operación] | [Estado de la Pila]
+------------------------------------------------
+PUSH: int  |  Pila Actual: [int]
+POP:  int  |  Pila Actual: []
+PUSH: int  |  Pila Actual: [int]
+POP:  int  |  Pila Actual: []
+PUSH: string  |  Pila Actual: [string]
+POP:  string  |  Pila Actual: []
+PUSH: int  |  Pila Actual: [int]
+PUSH: int  |  Pila Actual: [int, int]
+POP:  int  |  Pila Actual: [int]
+POP:  int  |  Pila Actual: []
+PUSH: int  |  Pila Actual: [int]
+POP:  int  |  Pila Actual: []
+------------------------------------------------
+ESTADO FINAL: Vacía
