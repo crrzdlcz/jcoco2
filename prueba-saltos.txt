@@ -1,0 +1,53 @@
+fn optimizarSaltos -> int(int: x) {
+
+    // ESCENARIO 1: If y Else VACÍOS
+    // Tu TAC generará:
+    //   if_false x > 5 goto L1
+    //   goto L2
+    // L1: goto L2  <-- (Salto encadenado + Salto a siguiente línea)
+    // L2:
+    if (x > 5) {
+        // Bloque vacío
+    } else {
+        // Bloque vacío
+    }
+
+    // ESCENARIO 2: Cadena de "else if" VACÍOS
+    // Tu TAC generará múltiples etiquetas intermedias (L3, L4, L5)
+    // que solo contienen un "goto L_final", creando saltos en cadena.
+    if (x == 1) {
+        print!("Es 1");
+    } else if (x == 2) {
+        // Vacío (Genera goto a siguiente línea)
+    } else if (x == 3) {
+        // Vacío (Etiqueta L_x sin usar,apurada a ser eliminada)
+    } else if (x == 4) {
+        // Vacío
+    } else {
+        print!("No es ninguno");
+    }
+
+    // ESCENARIO 3: If sin Else VACÍO
+    if (x < 0) {
+        // Vacío
+    }
+
+    return 0;
+}
+
+_inicio
+    coco int: valor = 10;
+
+    print!("Iniciando prueba...");
+    optimizarSaltos(valor);
+
+    // Forzamos el mismo escenario en el main
+    if (valor == 10) {
+        // Vacío
+    } else {
+        // Vacío
+    }
+
+    print!("Fin de la prueba.");
+
+final_

@@ -75,28 +75,28 @@ public class Main {
         
         tiempoTotal.detener();
         //msj.adv("TIEMPO DE EJECUCIÓN: " + tiempoTotal.getTiempoFormateado());
-        System.out.println( Colores.AZUL_NEGRITA + "# DEBUG # TIEMPO DE EJECUCIÓN: " + tiempoTotal.getTiempoFormateado());
+        System.out.println( Colores.AZUL_NEGRITA + "[DEBUG] TIEMPO DE EJECUCIÓN: " + tiempoTotal.getTiempoFormateado());
     }
   }
   
   
-  private static void guardarNASM(String rutaArchivoTAC, String rutaSalidaASM)
-  {
-      Mensaje msj = new Mensaje();
-      
-      try 
-      {
-          GeneradorNASM gen = new GeneradorNASM();
-          
-          gen.generarASM(rutaArchivoTAC, rutaSalidaASM);
-          
-          msj.ok("CÓDIGO NASM GENERADO EN: \n  " + rutaSalidaASM + "\n");
-      }
-      catch (Exception e)
-      {
-          msj.error("Error al generar código ensamblador: " + e.getMessage());
-      }
-  }
+//  private static void guardarNASM(String rutaArchivoTAC, String rutaSalidaASM)
+//  {
+//      Mensaje msj = new Mensaje();
+//      
+//      try 
+//      {
+//          GeneradorNASM gen = new GeneradorNASM();
+//          
+//          gen.generarASM(rutaArchivoTAC, rutaSalidaASM);
+//          
+//          msj.ok("CÓDIGO NASM GENERADO EN: \n  " + rutaSalidaASM + "\n");
+//      }
+//      catch (Exception e)
+//      {
+//          msj.error("Error al generar código ensamblador: " + e.getMessage());
+//      }
+//  }
   
   private static void guardarTAC(Arbol arbol, String rutaSalida) 
   {
@@ -106,8 +106,14 @@ public class Main {
     try (PrintStream archivoTAC = new PrintStream(rutaSalida)) 
     {
         GeneradorTAC gen = new GeneradorTAC();
-        gen.generar(arbol); // Recorre el árbol y llena la lista de instrucciones
+        gen.generar(arbol); 
+       
         
+        // == == == LLAMADAS A LAS OPTIMIZACIONES == == == == //
+        gen.optimizarCodigoMuerto();
+        msj.ok("CÓDIGO MUERTO ELIMINADO" + "\n");
+        gen.optimizarSaltos(); 
+               
         archivoTAC.println("--- CODIGO INTERMEDIO (TAC) ---");
         
         for (Instruccion inst : gen.getCodigo()) {

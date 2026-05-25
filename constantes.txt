@@ -1,0 +1,19 @@
+_inicio
+
+
+    coco int: z = 20;
+    coco int: y = 20;
+
+    coco int: x = y + z;
+
+    print!(x);
+
+
+    coco int: i;
+
+    for (i = 0; i < 5; i = i + 1) {
+        print!(i);
+    }
+
+
+final_
