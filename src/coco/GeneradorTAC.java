@@ -179,13 +179,14 @@ public class GeneradorTAC {
                 Simbolo s = Tabla.getTabla().buscar(idNombre);
                 if (s != null && s.tipo.equals("float")) {
                     emit("print_float", val, null, null);
+                } else if (s != null && s.tipo.equals("string")) {
+                    emit("print", val, null, null); // <--- USA PRINT NORMAL PARA STRINGS
                 } else {
                     emit("print_int", val, null, null);
                 }
             }
             // 4. Cualquier otra cosa (enteros, resultados de operaciones)
             else {
-                // Usamos el método que agregamos antes para saber si la operación resultó en float
                 String tipoOp = obtenerTipoDeArbol(exp);
                 if (tipoOp.equals("float")) {
                     emit("print_float", val, null, null);
@@ -232,23 +233,27 @@ public class GeneradorTAC {
     private void genEntrada(Arbol nodo) {
         String idVar = null;
         
-        // Buscamos el identificador de la variable
         for (Arbol h : nodo.getHijos()) {
             String nombre = h.getNombreProduccion();
             if (nombre.startsWith("Token: ")) {
                 String val = nombre.split(": ")[1].trim();
                 
-                // Filtramos la palabra reservada y los paréntesis/punto y coma
                 if (!val.equals("scan!") && !val.equals("(") && !val.equals(")") && !val.equals(";")) {
                     idVar = val;
-                    break; // Ya encontramos la variable, salimos del ciclo
+                    break; 
                 }
             }
         }
         
         if (idVar != null) {
-            emit("scan_int", idVar, null, idVar);
-            constantes.remove(idVar); // ya no es constante despues de leer.
+            // NUEVO: Checar el tipo real de la variable
+            Simbolo s = Tabla.getTabla().buscar(idVar);
+            if (s != null && s.tipo.equals("string")) {
+                emit("scan_string", idVar, null, idVar); // <--- NUEVO COMANDO TAC
+            } else {
+                emit("scan_int", idVar, null, idVar);
+            }
+            constantes.remove(idVar); 
         }
     }
     // Método auxiliar para saber si una operación es flotante

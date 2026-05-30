@@ -42,6 +42,8 @@ public class Instruccion {
                 return "print_float " + arg1;
             case "scan_int":
                 return "scan_int " + arg1;
+            case "scan_string":
+            	return "scan_string " + arg1;
             case "param":
                 return "param " + arg1;
             case "call":

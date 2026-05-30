@@ -1,0 +1,10 @@
+_inicio
+
+coco int: i;
+
+    for (i = 1; i < 100 ; i = i + 1) {
+        print!(i);
+        print!("Hola mundo");
+    }
+
+final_

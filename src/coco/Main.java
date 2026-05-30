@@ -7,7 +7,6 @@ import java.util.List;
 import javacc.GramaticaCoco;
 import javacc.ParseException;
 import javacc.TokenMgrError;
-import coco.Contador;
 
 public class Main {
 
@@ -19,6 +18,18 @@ public class Main {
     }
     
     String rutaArchivo = args[0];
+    
+    String nombreBase = obtenerNombreBase(rutaArchivo);
+    
+    // Para limpiar las extenciones de los archivos //
+    String rutaArbol   = nombreBase + " - ARBOL.txt";
+    String rutaPila    = nombreBase + " - PILA.txt";
+    String rutaTabla   = nombreBase + " - SIMBOLOS.txt";
+    String rutaTAC     = nombreBase + " - TAC.txt";
+    String rutaErrores = nombreBase + " - ERRORES.txt";
+    //String rutaASM     = nombreBase + ".asm";
+    String rutaCPP     = nombreBase + ".cpp";
+    
     GramaticaCoco parser = null;
     Arbol arbol = null;
     
@@ -54,22 +65,27 @@ public class Main {
                 msj.error( Colores.UNDERLINE + "ANÁLISIS FINALIZADO: Se encontraron errores (#" + 
                 		errores.size() + ").\n" + Colores.RESET );
                 
-                guardarErrores(errores, rutaArchivo + " - ERRORES.txt");
+                guardarErrores(errores, rutaErrores);
             }
 
-            guardarTabla(Tabla.getTabla(), rutaArchivo + " - SIMBOLOS.txt");
-            guardarPila(parser.getPilaSemantica(), rutaArchivo + " - PILA.txt");
+            guardarTabla(Tabla.getTabla(), rutaTabla);
+            guardarPila(parser.getPilaSemantica(), rutaPila);
             
             if (arbol != null) {
-                guardarArbol(arbol, rutaArchivo + " - ARBOL.txt");
-                guardarTAC(arbol, rutaArchivo + " - TAC.txt");
+                guardarArbol(arbol, rutaArbol);
+                guardarTAC(arbol, rutaTAC);
                 
-                // Para el NASM
+                // Para el NASM OLD
                 /*if (errores.isEmpty())
                 {
                 	String rutaASM = rutaArchivo + ".asm";
                 	guardarNASM(rutaArchivo +" - TAC.txt", rutaASM);
                 }/*/
+                
+                if (errores.isEmpty()) {
+                	// == ENERACION DE CODIGO C++ == //
+                	guardarCPP(rutaTAC, rutaCPP);
+                }
             }
         }
         
@@ -97,6 +113,24 @@ public class Main {
 //          msj.error("Error al generar código ensamblador: " + e.getMessage());
 //      }
 //  }
+  
+  // Auxiliar para generar el c++.
+  private static void guardarCPP(String rutaArchivoTAC, String rutaSalidaCPP) 
+  {
+      Mensaje msj = new Mensaje();
+      
+      try 
+      {
+          GeneradorCPP gen = new GeneradorCPP();
+          gen.generarCPP(rutaArchivoTAC, rutaSalidaCPP);
+          
+          msj.ok("CÓDIGO C++ GENERADO EN: \n  " + rutaSalidaCPP + "\n");
+      } 
+      catch (Exception e) 
+      {
+          msj.error("Error al generar código C++: " + e.getMessage());
+      }
+  }
   
   private static void guardarTAC(Arbol arbol, String rutaSalida) 
   {
@@ -189,4 +223,22 @@ public class Main {
       msj.error("Error al generar el árbol: " + e.getMessage());
 	}
   }
+  
+  private static String obtenerNombreBase(String ruta) {
+	    // Obtener solo el nombre del archivo (sin la ruta)
+	    String nombre = ruta;
+	    int lastSep = Math.max(ruta.lastIndexOf('/'), ruta.lastIndexOf('\\'));
+	    if (lastSep >= 0) {
+	        nombre = ruta.substring(lastSep + 1);
+	    }
+	    
+	    // Quitar la extensión (.txt, .coco, etc.)
+	    int punto = nombre.lastIndexOf('.');
+	    if (punto > 0) {
+	        nombre = nombre.substring(0, punto);
+	    }
+	    
+	    return nombre;
+	}
+  
 }
